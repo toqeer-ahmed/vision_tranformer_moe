@@ -68,6 +68,7 @@ class MoELayer(nn.Module):
         # Determine routing assignment and compute balance loss
         top_k_gates, top_k_indices, aux_loss = self.router(gating_logits)
         self.aux_loss = aux_loss
+        self.last_routing_indices = top_k_indices.detach().cpu()
         
         # Initialize token outputs
         output = torch.zeros_like(tokens)

@@ -138,6 +138,21 @@ python vision_transformer_research/inference/predict.py --task moe_segmentation 
 
 ---
 
+## Streamlit Visualization Dashboard
+
+The framework includes an interactive visual dashboard built with Streamlit. It allows you to:
+1. Compare architecture specs and dynamically calculated parameter sizes for Phase 1, Phase 2, and Phase 3 models.
+2. Run sample inference sandbox operations using synthetic data previews (perfect for offline runs).
+3. Visualize live routing token distribution counts per expert across all 8 MoE layers in real-time.
+4. Review the code tour explaining dynamic FFN-to-MoE block substitution.
+
+To launch the dashboard locally, execute:
+```powershell
+streamlit run vision_transformer_research/app.py
+```
+
+---
+
 ## How to Extend the Framework for MoE Research
 
 This framework was built from the ground up for academic and professional research. You can easily plug in new research components by following these interfaces:
