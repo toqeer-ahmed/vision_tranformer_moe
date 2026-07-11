@@ -1,0 +1,27 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# Datasets and cache
+data/
+datasets/cifar*/
+datasets/oxford*/
+.cache/
+
+# Execution Outputs
+outputs/
+logs/
+checkpoints/
+runs/
+
+# IDE / OS settings
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
