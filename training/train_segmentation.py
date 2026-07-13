@@ -67,14 +67,29 @@ def train(config_path: str):
         val_loader = torch.utils.data.DataLoader(mock_dataset, batch_size=dataset_cfg["batch_size"], shuffle=False)
         test_loader = torch.utils.data.DataLoader(mock_dataset, batch_size=dataset_cfg["batch_size"], shuffle=False)
     else:
-        train_loader, val_loader, test_loader = get_segmentation_dataloaders(
-            dataset_name=dataset_cfg["name"],
-            data_dir=dataset_cfg["data_dir"],
-            batch_size=dataset_cfg["batch_size"],
-            img_size=model_cfg["img_size"],
-            num_workers=dataset_cfg["num_workers"],
-            seed=train_cfg["seed"]
-        )
+        if dataset_cfg["name"].lower() == "medical-image-mask":
+            try:
+                from datasets.medical_dataset import get_medical_dataloaders
+            except ImportError:
+                from vision_transformer_research.datasets.medical_dataset import get_medical_dataloaders
+            
+            train_loader, val_loader = get_medical_dataloaders(
+                data_dir=dataset_cfg["data_dir"],
+                batch_size=dataset_cfg["batch_size"],
+                img_size=model_cfg["img_size"],
+                num_workers=dataset_cfg["num_workers"],
+                seed=train_cfg["seed"]
+            )
+            test_loader = val_loader
+        else:
+            train_loader, val_loader, test_loader = get_segmentation_dataloaders(
+                dataset_name=dataset_cfg["name"],
+                data_dir=dataset_cfg["data_dir"],
+                batch_size=dataset_cfg["batch_size"],
+                img_size=model_cfg["img_size"],
+                num_workers=dataset_cfg["num_workers"],
+                seed=train_cfg["seed"]
+            )
     
     # Model
     logger.info(f"Loading SegFormer model: {model_cfg['name']}...")

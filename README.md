@@ -153,6 +153,38 @@ streamlit run vision_transformer_research/app.py
 
 ---
 
+## Training on Medical Datasets & Google Colab
+
+The framework supports custom medical image segmentation datasets (such as ISIC skin lesion scans or BUSI breast cancer ultrasound datasets). 
+
+### 1. Data Structure Setup
+To load your custom medical dataset, arrange your files in the following format:
+```text
+data/medical_dataset/
+├── images/
+│   ├── patient_001.jpg
+│   ├── patient_002.jpg
+└── masks/
+    ├── patient_001_segmentation.png
+    └── patient_002_segmentation.png
+```
+*Note: The dataloader matches file stems automatically, so `patient_001.jpg` in `images/` will pair with `patient_001_segmentation.png` in `masks/`.*
+
+### 2. Launch Local Training
+Run the training script on the GPU using the medical configurations:
+```powershell
+python vision_transformer_research/training/train_moe.py --config vision_transformer_research/configs/medical_segmentation.yaml
+```
+
+### 3. Launching on Google Colab (Recommended for Free GPU access)
+To train using Colab's T4 or A100 GPU:
+1. Open Google Colab and select **Upload Notebook**.
+2. Upload the provided Jupyter Notebook: [notebooks/train_colab.ipynb](file:///d:/Study%20Material/Research/CV/vision_transformer_research/notebooks/train_colab.ipynb).
+3. Change the Colab runtime to a **GPU hardware accelerator** (`Runtime > Change runtime type > GPU`).
+4. Execute the cells sequentially to clone your repository, install packages, upload your dataset, and train.
+
+---
+
 ## How to Extend the Framework for MoE Research
 
 This framework was built from the ground up for academic and professional research. You can easily plug in new research components by following these interfaces:
