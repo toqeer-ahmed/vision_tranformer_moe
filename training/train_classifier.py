@@ -17,7 +17,7 @@ try:
     from vision_transformer_research.evaluation.visualize_predictions import plot_classification_curves, plot_confusion_matrix
 except ImportError:
     import sys
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from utils.seed import set_seed
     from utils.logger import setup_logger
     from utils.checkpoint import save_checkpoint, load_checkpoint

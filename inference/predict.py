@@ -16,7 +16,7 @@ try:
     from vision_transformer_research.training.train_moe import replace_segformer_ffn_with_moe
 except ImportError:
     import sys
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from models.vit_classifier import ViTClassifier
     from models.segformer import SegFormerSegmentation
     from models.moe.moe_layer import MoELayer
