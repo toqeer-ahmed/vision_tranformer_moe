@@ -228,6 +228,36 @@ with tab1:
     else:
         st.info("Training plots not found locally. Run training or copy the plots to outputs/medical_segmentation/plots/ to see live training performance charts here.")
 
+    # Dynamic presentation of validation predictions over epochs
+    st.markdown("---")
+    st.markdown("### **📸 Validation Prediction Epoch Progress**")
+    st.markdown("Observe how the MoE-SegFormer model improves its segmentation boundaries over training epochs (Left: Input Image, Center: Ground Truth Mask, Right: Predicted Mask):")
+    
+    if os.path.exists(plot_dir):
+        import glob
+        val_preds = glob.glob(os.path.join(plot_dir, "val_predictions_epoch_*.png"))
+        if val_preds:
+            # Sort files numerically by extracting epoch number
+            def extract_epoch(filename):
+                try:
+                    parts = os.path.basename(filename).split('_')
+                    return int(parts[-1].split('.')[0])
+                except Exception:
+                    return 0
+            val_preds_sorted = sorted(val_preds, key=extract_epoch)
+            
+            # Create a dropdown selector for the epoch prediction visualization
+            epoch_labels = [f"Epoch {extract_epoch(p)} Visual Results" for p in val_preds_sorted]
+            selected_label = st.selectbox("Select Epoch to View Predictions:", epoch_labels)
+            selected_idx = epoch_labels.index(selected_label)
+            selected_plot = val_preds_sorted[selected_idx]
+            
+            st.image(selected_plot, caption=f"Validation Predictions for {selected_label}", use_column_width=True)
+        else:
+            st.info("No epoch-by-epoch predictions plots found in plots directory.")
+    else:
+        st.info("Copy the validation predictions plots to outputs/medical_segmentation/plots/ to view epoch progression here.")
+
 with tab2:
     st.markdown("### **Interactive Model Sandbox**")
     st.markdown("Select a research model and generate synthetic datasets to run inference, calculate metrics, and analyze MoE routing distributions.")
