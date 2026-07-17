@@ -101,10 +101,30 @@ def load_models_for_dashboard():
     dummy_logger = logging.getLogger("dashboard")
     replace_segformer_ffn_with_moe(moe_segformer_model, moe_config, dummy_logger)
     
+    # Load trained checkpoints if available
+    checkpoint_path = "outputs/medical_segmentation/checkpoints/best_model.pth"
+    if os.path.exists(checkpoint_path):
+        try:
+            checkpoint = torch.load(checkpoint_path, map_location="cpu")
+            state_dict = checkpoint.get("state_dict", checkpoint)
+            # Remove module prefix if loaded from distributed trainer
+            cleaned_state_dict = {}
+            for k, v in state_dict.items():
+                if k.startswith("module."):
+                    cleaned_state_dict[k[7:]] = v
+                else:
+                    cleaned_state_dict[k] = v
+            moe_segformer_model.load_state_dict(cleaned_state_dict)
+            st.sidebar.success("Loaded trained MoE model weights!")
+        except Exception as e:
+            st.sidebar.error(f"Error loading trained MoE weights: {e}")
+    else:
+        st.sidebar.info("Using randomly initialized MoE model (no trained checkpoint found).")
+        
     return vit_model, segformer_model, moe_segformer_model
 
 # Load models
-with st.spinner("Initializing models (randomly initialized for offline dashboard)..."):
+with st.spinner("Initializing models..."):
     vit_model, segformer_model, moe_segformer_model = load_models_for_dashboard()
 
 # Sidebar
@@ -184,6 +204,29 @@ with tab1:
                                               |
                                   [Summed Outputs (N, hidden_dim)]
     """, language="text")
+
+    # Dynamic presentation of training plots if they exist
+    st.markdown("---")
+    st.markdown("### **📈 Training Performance & Validation Metrics**")
+    
+    plot_dir = "outputs/medical_segmentation/plots"
+    if os.path.exists(plot_dir):
+        col_plot1, col_plot2 = st.columns(2)
+        loss_curve_path = os.path.join(plot_dir, "loss_curves.png")
+        metrics_curve_path = os.path.join(plot_dir, "segmentation_metrics.png")
+        
+        with col_plot1:
+            if os.path.exists(loss_curve_path):
+                st.image(loss_curve_path, caption="Training & Validation Loss Curves", use_column_width=True)
+            else:
+                st.info("Loss curves plot not found.")
+        with col_plot2:
+            if os.path.exists(metrics_curve_path):
+                st.image(metrics_curve_path, caption="Mean IoU & Dice Validation Metrics", use_column_width=True)
+            else:
+                st.info("Validation metrics plot not found.")
+    else:
+        st.info("Training plots not found locally. Run training or copy the plots to outputs/medical_segmentation/plots/ to see live training performance charts here.")
 
 with tab2:
     st.markdown("### **Interactive Model Sandbox**")
