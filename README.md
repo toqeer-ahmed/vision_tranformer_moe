@@ -1,4 +1,4 @@
-y# Vision Transformer & Mixture of Experts (MoE) Research Framework
+# Vision Transformer & Mixture of Experts (MoE) Research Framework
 
 A unified, modular, research-oriented computer vision framework written in Python and PyTorch. This framework progresses from standard Vision Transformer (ViT) classification to SegFormer-based semantic segmentation, and finally to a SegFormer model augmented with a dynamic Mixture of Experts (MoE) layer.
 
