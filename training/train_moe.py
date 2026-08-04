@@ -13,10 +13,10 @@ try:
     from vision_transformer_research.utils.checkpoint import save_checkpoint, load_checkpoint
     from vision_transformer_research.datasets.segmentation_dataset import get_segmentation_dataloaders
     from vision_transformer_research.models.segformer import SegFormerSegmentation
-    from vision_transformer_research.models.moe.moe_layer import MoELayer
+    from vision_transformer_research.models.moe.moe_layer import MoELayer, SharedMoELayer
     from vision_transformer_research.evaluation.metrics import compute_segmentation_metrics
     from vision_transformer_research.evaluation.visualize_predictions import plot_segmentation_curves, plot_segmentation_predictions
-    from vision_transformer_research.evaluation.losses import CombinedSegmentationLoss, DiceLoss
+    from vision_transformer_research.evaluation.losses import CombinedSegmentationLoss, DiceLoss, FocalTverskyLoss
 except ImportError:
     import sys
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -25,19 +25,22 @@ except ImportError:
     from utils.checkpoint import save_checkpoint, load_checkpoint
     from datasets.segmentation_dataset import get_segmentation_dataloaders
     from models.segformer import SegFormerSegmentation
-    from models.moe.moe_layer import MoELayer
+    from models.moe.moe_layer import MoELayer, SharedMoELayer
     from evaluation.metrics import compute_segmentation_metrics
     from evaluation.visualize_predictions import plot_segmentation_curves, plot_segmentation_predictions
-    from evaluation.losses import CombinedSegmentationLoss, DiceLoss
+    from evaluation.losses import CombinedSegmentationLoss, DiceLoss, FocalTverskyLoss
 
 def replace_segformer_ffn_with_moe(model: SegFormerSegmentation, moe_config: dict, logger) -> int:
     """
     Traverses the Segformer encoder stages and replaces MLP (MixMLP) layers
-    with custom MoELayers dynamically.
+    with custom MoELayers or SharedMoELayers dynamically.
     """
     segformer = model.model.segformer
     replaced_count = 0
     target_stages = moe_config.get("stages", [0, 1, 2, 3])
+    use_shared_expert = moe_config.get("use_shared_expert", False)
+    
+    moe_cls = SharedMoELayer if use_shared_expert else MoELayer
     
     for stage_idx, stage in enumerate(segformer.stages):
         if stage_idx not in target_stages:
@@ -45,8 +48,7 @@ def replace_segformer_ffn_with_moe(model: SegFormerSegmentation, moe_config: dic
         hidden_dim = segformer.config.hidden_sizes[stage_idx]
         
         for block_idx, block in enumerate(stage.blocks):
-            # block is a SegformerLayer. Swap out block.mlp
-            moe_layer = MoELayer(
+            moe_layer = moe_cls(
                 hidden_dim=hidden_dim,
                 num_experts=moe_config["num_experts"],
                 top_k=moe_config["top_k"],
@@ -57,17 +59,17 @@ def replace_segformer_ffn_with_moe(model: SegFormerSegmentation, moe_config: dic
             block.mlp = moe_layer
             replaced_count += 1
             
-    logger.info(f"Successfully replaced {replaced_count} Segformer Feed-Forward blocks with custom MoELayers in stages {target_stages}.")
+    arch_name = "Shared-Expert MoELayers" if use_shared_expert else "MoELayers"
+    logger.info(f"Successfully replaced {replaced_count} Segformer Feed-Forward blocks with custom {arch_name} in stages {target_stages}.")
     return replaced_count
 
 def get_moe_auxiliary_loss(model: nn.Module) -> torch.Tensor:
     """
-    Retrieves and sums the routing balance losses from all MoELayers.
+    Retrieves and sums the routing balance losses from all MoELayers and SharedMoELayers.
     """
     aux_loss = 0.0
     for module in model.modules():
-        if isinstance(module, MoELayer):
-            # Accumulate the balance loss calculated during the latest forward pass
+        if isinstance(module, (MoELayer, SharedMoELayer)):
             aux_loss += module.aux_loss
     return aux_loss
 
@@ -156,18 +158,11 @@ def train(config_path: str):
     logger.info(f"Total parameters (MoE-augmented): {total_params:,}")
     logger.info(f"Trainable parameters (MoE-augmented): {trainable_params:,}")
     
-    # Loss Setup (Combined Loss support: CrossEntropy + Dice Loss)
-    loss_type = train_cfg.get("loss_type", "combined")
+    # Loss Setup (Combined Loss support: CrossEntropy, Dice Loss, Focal Tversky Loss)
+    loss_type = train_cfg.get("loss_type", "focal_tversky")
     dice_weight = float(train_cfg.get("dice_weight", 1.0))
-    if loss_type == "combined":
-        criterion = CombinedSegmentationLoss(dice_weight=dice_weight)
-        logger.info(f"Configured CombinedSegmentationLoss (Cross-Entropy + Dice Loss, weight={dice_weight})")
-    elif loss_type == "dice":
-        criterion = DiceLoss()
-        logger.info("Configured DiceLoss")
-    else:
-        criterion = nn.CrossEntropyLoss()
-        logger.info("Configured CrossEntropyLoss")
+    criterion = CombinedSegmentationLoss(loss_type=loss_type, dice_weight=dice_weight)
+    logger.info(f"Configured CombinedSegmentationLoss (mode={loss_type}, dice_weight={dice_weight})")
         
     optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -217,13 +212,8 @@ def train(config_path: str):
             optimizer.zero_grad()
             logits = model(images)
             
-            # Compute Main Task Loss (CE + Dice)
             main_loss = criterion(logits, targets)
-            
-            # Accumulate gating load balancing auxiliary losses
             aux_loss = get_moe_auxiliary_loss(model)
-            
-            # Combine loss targets
             total_loss = main_loss + aux_loss
             
             total_loss.backward()
@@ -245,7 +235,6 @@ def train(config_path: str):
         epoch_train_aux = running_aux_loss / total_pixels
         train_losses.append(epoch_train_loss)
         
-        # Step LR Scheduler
         current_lr = optimizer.param_groups[0]["lr"]
         if scheduler:
             scheduler.step()
@@ -288,7 +277,6 @@ def train(config_path: str):
         epoch_val_loss = running_val_loss / val_pixels
         val_losses.append(epoch_val_loss)
         
-        # Concatenate and compute metrics
         all_preds = torch.cat(all_preds, dim=0)
         all_targets = torch.cat(all_targets, dim=0)
         
@@ -304,7 +292,6 @@ def train(config_path: str):
             f"Val mDice: {metrics['mean_dice']:.4f}"
         )
         
-        # Tensorboard log
         if tb_writer:
             tb_writer.add_scalar("Loss/Train", epoch_train_loss, epoch)
             tb_writer.add_scalar("Loss/Train_Main", epoch_train_main, epoch)
@@ -315,7 +302,6 @@ def train(config_path: str):
             tb_writer.add_scalar("Metrics/PixelAccuracy", metrics["pixel_accuracy"], epoch)
             tb_writer.add_scalar("LearningRate", current_lr, epoch)
             
-        # Checkpoint save
         state = {
             "epoch": epoch,
             "state_dict": model.state_dict(),
@@ -330,7 +316,6 @@ def train(config_path: str):
             save_checkpoint(state, log_cfg["checkpoint_dir"], filename="best_model.pth")
             logger.info(f"New best validation mIoU (MoE): {best_val_iou:.4f}. Saved best model checkpoint.")
             
-            # Save sample predictions on best model
             if sample_images is not None:
                 plot_path = os.path.join(log_cfg["plot_dir"], f"val_predictions_epoch_{epoch}.png")
                 plot_segmentation_predictions(sample_images, sample_masks, sample_preds, plot_path)
@@ -342,10 +327,8 @@ def train(config_path: str):
                 logger.info("Early stopping triggered. Training stopped.")
                 break
                 
-    # Plot curves
     plot_segmentation_curves(train_losses, val_losses, val_ious, val_dices, log_cfg["plot_dir"])
     
-    # Testing
     logger.info("Loading best model for testing...")
     best_path = os.path.join(log_cfg["checkpoint_dir"], "best_model.pth")
     if os.path.exists(best_path):
