@@ -2,7 +2,7 @@ model:
   name: "nvidia/mit-b0"
   pretrained: true
   num_classes: 2
-  img_size: 256
+  img_size: 352
   moe:
     num_experts: 4
     top_k: 2
@@ -19,11 +19,15 @@ dataset:
 training:
   lr: 1.0e-4
   weight_decay: 0.01
-  epochs: 20
-  early_stopping_patience: 5
+  epochs: 40
+  early_stopping_patience: 10
   seed: 42
   device: "cuda"
   fast_dev_run: false
+  loss_type: "combined" # "ce", "dice", or "combined"
+  dice_weight: 1.0
+  use_cosine_scheduler: true
+  min_lr: 1.0e-6
 
 logging:
   log_dir: "outputs/medical_segmentation/logs"

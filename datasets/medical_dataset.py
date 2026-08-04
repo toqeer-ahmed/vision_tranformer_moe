@@ -115,17 +115,20 @@ class SubsetMedicalWrapper(Dataset):
             
         return image_tensor, mask_tensor
 
-def get_medical_transforms(img_size: int = 256):
+def get_medical_transforms(img_size: int = 352):
     """
-    Returns data augmentation transforms tailored for medical image scans.
+    Returns enhanced data augmentation transforms tailored for medical image scans.
+    Simulates non-rigid tissue deformations, lens distortions, and endoscopic camera variations.
     """
     train_transform = A.Compose([
         A.Resize(img_size, img_size),
         A.HorizontalFlip(p=0.5),
         A.VerticalFlip(p=0.5),           # Standard for tissue scan data (orientation invariant)
         A.RandomRotate90(p=0.5),          # Multi-angle tissue alignment rotation
-        A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.15, rotate_limit=30, p=0.5),
-        A.RandomBrightnessContrast(p=0.2),
+        A.Affine(scale=(0.85, 1.15), rotate=(-30, 30), translate_percent=(-0.1, 0.1), p=0.5),
+        A.ElasticTransform(alpha=1, sigma=50, p=0.3),
+        A.GridDistortion(p=0.3),
+        A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, p=0.3),
         A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
         ToTensorV2(),
     ])

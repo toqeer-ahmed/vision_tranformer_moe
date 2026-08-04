@@ -16,6 +16,7 @@ try:
     from vision_transformer_research.models.moe.moe_layer import MoELayer
     from vision_transformer_research.evaluation.metrics import compute_segmentation_metrics
     from vision_transformer_research.evaluation.visualize_predictions import plot_segmentation_curves, plot_segmentation_predictions
+    from vision_transformer_research.evaluation.losses import CombinedSegmentationLoss, DiceLoss
 except ImportError:
     import sys
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -27,6 +28,7 @@ except ImportError:
     from models.moe.moe_layer import MoELayer
     from evaluation.metrics import compute_segmentation_metrics
     from evaluation.visualize_predictions import plot_segmentation_curves, plot_segmentation_predictions
+    from evaluation.losses import CombinedSegmentationLoss, DiceLoss
 
 def replace_segformer_ffn_with_moe(model: SegFormerSegmentation, moe_config: dict, logger) -> int:
     """
@@ -35,8 +37,11 @@ def replace_segformer_ffn_with_moe(model: SegFormerSegmentation, moe_config: dic
     """
     segformer = model.model.segformer
     replaced_count = 0
+    target_stages = moe_config.get("stages", [0, 1, 2, 3])
     
     for stage_idx, stage in enumerate(segformer.stages):
+        if stage_idx not in target_stages:
+            continue
         hidden_dim = segformer.config.hidden_sizes[stage_idx]
         
         for block_idx, block in enumerate(stage.blocks):
@@ -52,7 +57,7 @@ def replace_segformer_ffn_with_moe(model: SegFormerSegmentation, moe_config: dic
             block.mlp = moe_layer
             replaced_count += 1
             
-    logger.info(f"Successfully replaced {replaced_count} Segformer Feed-Forward blocks with custom MoELayers.")
+    logger.info(f"Successfully replaced {replaced_count} Segformer Feed-Forward blocks with custom MoELayers in stages {target_stages}.")
     return replaced_count
 
 def get_moe_auxiliary_loss(model: nn.Module) -> torch.Tensor:
@@ -151,13 +156,35 @@ def train(config_path: str):
     logger.info(f"Total parameters (MoE-augmented): {total_params:,}")
     logger.info(f"Trainable parameters (MoE-augmented): {trainable_params:,}")
     
-    # Loss & Optimizer
-    criterion = nn.CrossEntropyLoss()
+    # Loss Setup (Combined Loss support: CrossEntropy + Dice Loss)
+    loss_type = train_cfg.get("loss_type", "combined")
+    dice_weight = float(train_cfg.get("dice_weight", 1.0))
+    if loss_type == "combined":
+        criterion = CombinedSegmentationLoss(dice_weight=dice_weight)
+        logger.info(f"Configured CombinedSegmentationLoss (Cross-Entropy + Dice Loss, weight={dice_weight})")
+    elif loss_type == "dice":
+        criterion = DiceLoss()
+        logger.info("Configured DiceLoss")
+    else:
+        criterion = nn.CrossEntropyLoss()
+        logger.info("Configured CrossEntropyLoss")
+        
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=float(train_cfg["lr"]),
         weight_decay=float(train_cfg["weight_decay"])
     )
+    
+    # Scheduler Setup (CosineAnnealingLR)
+    use_cosine = train_cfg.get("use_cosine_scheduler", True)
+    if use_cosine:
+        min_lr = float(train_cfg.get("min_lr", 1.0e-6))
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=epochs_to_run, eta_min=min_lr
+        )
+        logger.info(f"Configured CosineAnnealingLR scheduler (T_max={epochs_to_run}, min_lr={min_lr})")
+    else:
+        scheduler = None
     
     # Tensorboard writer
     tb_writer = None
@@ -177,7 +204,7 @@ def train(config_path: str):
         # Training epoch
         model.train()
         running_loss = 0.0
-        running_ce_loss = 0.0
+        running_main_loss = 0.0
         running_aux_loss = 0.0
         total_pixels = 0
         
@@ -190,34 +217,39 @@ def train(config_path: str):
             optimizer.zero_grad()
             logits = model(images)
             
-            # Compute Cross Entropy
-            ce_loss = criterion(logits, targets)
+            # Compute Main Task Loss (CE + Dice)
+            main_loss = criterion(logits, targets)
             
             # Accumulate gating load balancing auxiliary losses
             aux_loss = get_moe_auxiliary_loss(model)
             
             # Combine loss targets
-            total_loss = ce_loss + aux_loss
+            total_loss = main_loss + aux_loss
             
             total_loss.backward()
             optimizer.step()
             
             running_loss += total_loss.item() * images.size(0)
-            running_ce_loss += ce_loss.item() * images.size(0)
+            running_main_loss += main_loss.item() * images.size(0)
             running_aux_loss += aux_loss.item() * images.size(0)
             total_pixels += images.size(0)
             
             if (batch_idx + 1) % 10 == 0 or fast_dev_run:
                 logger.info(
                     f"Epoch [{epoch}/{epochs_to_run}] Batch [{batch_idx+1}/{len(train_loader)}] | "
-                    f"Loss: {total_loss.item():.4f} (CE: {ce_loss.item():.4f}, Aux: {aux_loss.item():.4f})"
+                    f"Loss: {total_loss.item():.4f} (Main: {main_loss.item():.4f}, Aux: {aux_loss.item():.4f})"
                 )
                 
         epoch_train_loss = running_loss / total_pixels
-        epoch_train_ce = running_ce_loss / total_pixels
+        epoch_train_main = running_main_loss / total_pixels
         epoch_train_aux = running_aux_loss / total_pixels
         train_losses.append(epoch_train_loss)
         
+        # Step LR Scheduler
+        current_lr = optimizer.param_groups[0]["lr"]
+        if scheduler:
+            scheduler.step()
+            
         # Validation epoch
         model.eval()
         running_val_loss = 0.0
@@ -237,10 +269,9 @@ def train(config_path: str):
                 images, targets = images.to(device), targets.to(device)
                 logits = model(images)
                 
-                # Val Loss calculation (excluding active noisy routing penalty, or including it at coef 0)
-                ce_loss = criterion(logits, targets)
+                main_loss = criterion(logits, targets)
                 aux_loss = get_moe_auxiliary_loss(model)
-                val_loss = ce_loss + aux_loss
+                val_loss = main_loss + aux_loss
                 
                 running_val_loss += val_loss.item() * images.size(0)
                 val_pixels += images.size(0)
@@ -266,8 +297,8 @@ def train(config_path: str):
         val_dices.append(metrics["mean_dice"])
         
         logger.info(
-            f"Epoch [{epoch}/{epochs_to_run}] - "
-            f"Loss: {epoch_train_loss:.4f} (CE: {epoch_train_ce:.4f}, Aux: {epoch_train_aux:.4f}) | "
+            f"Epoch [{epoch}/{epochs_to_run}] (LR: {current_lr:.2e}) - "
+            f"Loss: {epoch_train_loss:.4f} (Main: {epoch_train_main:.4f}, Aux: {epoch_train_aux:.4f}) | "
             f"Val Loss: {epoch_val_loss:.4f} | "
             f"Val mIoU: {metrics['mean_iou']:.4f} | "
             f"Val mDice: {metrics['mean_dice']:.4f}"
@@ -276,12 +307,13 @@ def train(config_path: str):
         # Tensorboard log
         if tb_writer:
             tb_writer.add_scalar("Loss/Train", epoch_train_loss, epoch)
-            tb_writer.add_scalar("Loss/Train_CE", epoch_train_ce, epoch)
+            tb_writer.add_scalar("Loss/Train_Main", epoch_train_main, epoch)
             tb_writer.add_scalar("Loss/Train_Aux", epoch_train_aux, epoch)
             tb_writer.add_scalar("Loss/Val", epoch_val_loss, epoch)
             tb_writer.add_scalar("Metrics/mIoU", metrics["mean_iou"], epoch)
             tb_writer.add_scalar("Metrics/mDice", metrics["mean_dice"], epoch)
             tb_writer.add_scalar("Metrics/PixelAccuracy", metrics["pixel_accuracy"], epoch)
+            tb_writer.add_scalar("LearningRate", current_lr, epoch)
             
         # Checkpoint save
         state = {
