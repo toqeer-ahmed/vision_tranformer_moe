@@ -26,8 +26,11 @@ class OxfordPetDataset(Dataset):
     def __getitem__(self, idx):
         image, target = self.dataset[idx]
         
-        # Convert PIL to NumPy
-        image = np.array(image.convert("RGB"))
+        # Convert PIL / Tensor / Array to NumPy
+        if hasattr(image, "convert"):
+            image = np.array(image.convert("RGB"))
+        else:
+            image = np.array(image)
         target = np.array(target) # Values are 1 (foreground), 2 (background), 3 (border)
         
         # Map target to binary: 1 (Pet) -> 1, 2 (Background) -> 0, 3 (Border) -> 0
@@ -59,8 +62,11 @@ class SubsetSegmentationWrapper(Dataset):
         # Retrieve raw image and target mask from parent dataset
         image, target = self.subset.dataset[self.subset.indices[idx]]
         
-        # Convert PIL to NumPy
-        image = np.array(image.convert("RGB"))
+        # Convert PIL / Tensor / Array to NumPy
+        if hasattr(image, "convert"):
+            image = np.array(image.convert("RGB"))
+        else:
+            image = np.array(image)
         target = np.array(target)
         
         # Map target to binary (pet vs background)
