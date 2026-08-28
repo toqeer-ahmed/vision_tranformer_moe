@@ -14,7 +14,7 @@ model:
 
 dataset:
   name: "medical-image-mask"
-  data_dir: "vision_transformer_research/data/medical_dataset" # Directory containing images/ and masks/
+  data_dir: "data/medical_dataset" # Directory containing images/ and masks/
   batch_size: 8
   num_workers: 2
 
