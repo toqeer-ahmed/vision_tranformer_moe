@@ -89,8 +89,6 @@ class SegMoTE(nn.Module):
         # Extract the processed expert tokens from the decoder output
         # SAM appends prompt tokens after its 5 innate tokens (1 iou + 4 mask)
         # So our sparse tokens are at indices [5:]
-        processed_sparse_tokens = decoder_outputs.iou_predictions # Actually we need the latent tokens
-        
         # Workaround: Since transformers SamMaskDecoder doesn't return the raw updated tokens 
         # directly in the dataclass (it projects them to masks), we can route the initial 
         # expert tokens through MoTE and then use that routed token for a custom mask projection,
