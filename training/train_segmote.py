@@ -117,7 +117,7 @@ def train(config_path, fast_dev_run=False):
                 
             train_loss += (loss.item() * accumulation_steps)
             
-            if batch_idx % log_cfg["log_interval"] == 0:
+            if batch_idx % log_cfg.get("log_interval", 10) == 0:
                 logger.info(f"Epoch [{epoch}/{epochs}] Batch [{batch_idx}/{len(train_loader)}] | Loss: {loss.item() * accumulation_steps:.4f}")
                 
         avg_train_loss = train_loss / len(train_loader)
