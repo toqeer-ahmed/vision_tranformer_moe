@@ -47,8 +47,13 @@ class FocalTverskyLoss(nn.Module):
 
     def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         num_classes = logits.shape[1]
-        probs = F.softmax(logits, dim=1)
-        targets_one_hot = F.one_hot(targets, num_classes=num_classes).permute(0, 3, 1, 2).float()
+        
+        if num_classes == 1:
+            probs = torch.sigmoid(logits).squeeze(1)
+            targets_one_hot = targets.float()
+        else:
+            probs = F.softmax(logits, dim=1)
+            targets_one_hot = F.one_hot(targets, num_classes=num_classes).permute(0, 3, 1, 2).float()
         
         tp = (probs * targets_one_hot).sum(dim=(-2, -1))
         fp = (probs * (1.0 - targets_one_hot)).sum(dim=(-2, -1))
@@ -92,7 +97,10 @@ class SobelBoundaryLoss(nn.Module):
 
     def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         num_classes = logits.shape[1]
-        probs = F.softmax(logits, dim=1)[:, 1:2, :, :] # Foreground channel
+        if num_classes == 1:
+            probs = torch.sigmoid(logits)
+        else:
+            probs = F.softmax(logits, dim=1)[:, 1:2, :, :] # Foreground channel
         targets_float = (targets == 1).unsqueeze(1).float()
         
         pred_grad_x = F.conv2d(probs, self.sobel_x, padding=1)
@@ -116,21 +124,25 @@ class CombinedSegmentationLoss(nn.Module):
         self.ce_weight = ce_weight
         self.balance_weight = balance_weight
         self.ce_loss = nn.CrossEntropyLoss()
+        self.bce_loss = nn.BCEWithLogitsLoss()
         self.dice_loss = DiceLoss()
         self.focal_tversky_loss = FocalTverskyLoss(alpha=0.3, beta=0.7, gamma=1.33)
         self.boundary_loss = SobelBoundaryLoss()
         self.load_balancing_loss = LoadBalancingLoss()
 
     def forward(self, logits: torch.Tensor, targets: torch.Tensor, gating_probs: torch.Tensor = None) -> torch.Tensor:
-        if self.loss_type == "focal_tversky":
+        if logits.shape[1] == 1:
+            ce = self.bce_loss(logits, targets.unsqueeze(1).float())
+        else:
             ce = self.ce_loss(logits, targets)
+            
+        if self.loss_type == "focal_tversky":
             ft = self.focal_tversky_loss(logits, targets)
             edge = self.boundary_loss(logits, targets)
             loss = (self.ce_weight * ce) + (self.dice_weight * ft) + (0.5 * edge)
         elif self.loss_type == "dice":
             loss = self.dice_loss(logits, targets)
         else:
-            ce = self.ce_loss(logits, targets)
             dice = self.dice_loss(logits, targets)
             loss = (self.ce_weight * ce) + (self.dice_weight * dice)
             
