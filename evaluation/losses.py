@@ -58,6 +58,27 @@ class FocalTverskyLoss(nn.Module):
         focal_tversky = (1.0 - tversky) ** self.gamma
         return focal_tversky.mean()
 
+class LoadBalancingLoss(nn.Module):
+    """
+    Load Balancing Loss based on Coefficient of Variation (CV) 
+    to encourage balanced utilization of experts in MoTE routing.
+    """
+    def __init__(self):
+        super(LoadBalancingLoss, self).__init__()
+
+    def forward(self, gating_probs: torch.Tensor) -> torch.Tensor:
+        # gating_probs shape: (batch_size * sequence_length, num_experts)
+        # importance = sum of probabilities for each expert
+        importance = gating_probs.sum(dim=0)
+        # load = number of tokens routed to each expert (approx using probs > 0 or max)
+        # For simplicity and differentiable routing, we use soft load (mean probs)
+        mean_importance = importance.mean()
+        var_importance = importance.var(unbiased=False)
+        cv_squared = var_importance / (mean_importance ** 2 + 1e-6)
+        
+        return cv_squared
+
+
 class SobelBoundaryLoss(nn.Module):
     """
     Sobel Boundary Loss for sharpening edge spatial boundaries in medical segmentation.
@@ -88,25 +109,33 @@ class CombinedSegmentationLoss(nn.Module):
     """
     Unified Compound Loss Function supporting Cross-Entropy, Dice Loss, and Focal Tversky Loss.
     """
-    def __init__(self, loss_type: str = "combined", dice_weight: float = 1.0, ce_weight: float = 1.0):
+    def __init__(self, loss_type: str = "combined", dice_weight: float = 1.0, ce_weight: float = 1.0, balance_weight: float = 0.01):
         super(CombinedSegmentationLoss, self).__init__()
         self.loss_type = loss_type.lower()
         self.dice_weight = dice_weight
         self.ce_weight = ce_weight
+        self.balance_weight = balance_weight
         self.ce_loss = nn.CrossEntropyLoss()
         self.dice_loss = DiceLoss()
         self.focal_tversky_loss = FocalTverskyLoss(alpha=0.3, beta=0.7, gamma=1.33)
         self.boundary_loss = SobelBoundaryLoss()
+        self.load_balancing_loss = LoadBalancingLoss()
 
-    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor, gating_probs: torch.Tensor = None) -> torch.Tensor:
         if self.loss_type == "focal_tversky":
             ce = self.ce_loss(logits, targets)
             ft = self.focal_tversky_loss(logits, targets)
             edge = self.boundary_loss(logits, targets)
-            return (self.ce_weight * ce) + (self.dice_weight * ft) + (0.5 * edge)
+            loss = (self.ce_weight * ce) + (self.dice_weight * ft) + (0.5 * edge)
         elif self.loss_type == "dice":
-            return self.dice_loss(logits, targets)
+            loss = self.dice_loss(logits, targets)
         else:
             ce = self.ce_loss(logits, targets)
             dice = self.dice_loss(logits, targets)
-            return (self.ce_weight * ce) + (self.dice_weight * dice)
+            loss = (self.ce_weight * ce) + (self.dice_weight * dice)
+            
+        if gating_probs is not None:
+            l_balance = self.load_balancing_loss(gating_probs)
+            loss = loss + (self.balance_weight * l_balance)
+            
+        return loss

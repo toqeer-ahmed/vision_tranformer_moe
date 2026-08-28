@@ -42,12 +42,12 @@ def replace_segformer_ffn_with_moe(model: SegFormerSegmentation, moe_config: dic
     
     moe_cls = SharedMoELayer if use_shared_expert else MoELayer
     
-    for stage_idx, stage in enumerate(segformer.stages):
+    for stage_idx, stage in enumerate(segformer.encoder.block):
         if stage_idx not in target_stages:
             continue
         hidden_dim = segformer.config.hidden_sizes[stage_idx]
         
-        for block_idx, block in enumerate(stage.blocks):
+        for block_idx, block in enumerate(stage):
             moe_layer = moe_cls(
                 hidden_dim=hidden_dim,
                 num_experts=moe_config["num_experts"],
@@ -161,7 +161,7 @@ def train(config_path: str):
     # Loss Setup (Combined Loss support: CrossEntropy, Dice Loss, Focal Tversky Loss)
     loss_type = train_cfg.get("loss_type", "focal_tversky")
     dice_weight = float(train_cfg.get("dice_weight", 1.0))
-    criterion = CombinedSegmentationLoss(loss_type=loss_type, dice_weight=dice_weight)
+    criterion = CombinedSegmentationLoss(loss_type=loss_type, dice_weight=dice_weight).to(device)
     logger.info(f"Configured CombinedSegmentationLoss (mode={loss_type}, dice_weight={dice_weight})")
         
     optimizer = torch.optim.AdamW(
