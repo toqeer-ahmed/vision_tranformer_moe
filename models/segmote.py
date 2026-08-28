@@ -103,7 +103,7 @@ class SegMoTE(nn.Module):
         # 5. Final Mask Prediction
         # Upscale image features similar to SAM
         upscaled_embedding = self.sam.mask_decoder.upscale_conv1(image_embeddings)
-        upscaled_embedding = self.sam.mask_decoder.upscale_layer_norm(upscaled_embedding.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
+        upscaled_embedding = self.sam.mask_decoder.upscale_layer_norm(upscaled_embedding)
         upscaled_embedding = self.sam.mask_decoder.upscale_conv2(upscaled_embedding) # [B, 32, H*4, W*4]
         
         # Project expert token
