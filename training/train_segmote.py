@@ -89,28 +89,36 @@ def train(config_path, fast_dev_run=False):
     
     best_val_iou = 0.0
     
+    scaler = torch.cuda.amp.GradScaler()
+    accumulation_steps = dataset_cfg.get("accumulation_steps", 4)
+    
     logger.info("Starting SegMoTE training loop...")
     for epoch in range(1, epochs + 1):
         model.train()
         train_loss = 0.0
+        optimizer.zero_grad()
         
         for batch_idx, (images, targets) in enumerate(train_loader):
             images, targets = images.to(device), targets.to(device)
-            optimizer.zero_grad()
             
-            # Forward
-            logits, gating_probs = model(images)
-            
-            # Compute loss
-            loss = criterion(logits, targets, gating_probs)
+            # Forward with AMP
+            with torch.cuda.amp.autocast():
+                logits, gating_probs = model(images)
+                loss = criterion(logits, targets, gating_probs)
+                loss = loss / accumulation_steps
             
             # Backward
-            loss.backward()
-            optimizer.step()
-            train_loss += loss.item()
+            scaler.scale(loss).backward()
+            
+            if (batch_idx + 1) % accumulation_steps == 0 or (batch_idx + 1) == len(train_loader):
+                scaler.step(optimizer)
+                scaler.update()
+                optimizer.zero_grad()
+                
+            train_loss += (loss.item() * accumulation_steps)
             
             if batch_idx % log_cfg["log_interval"] == 0:
-                logger.info(f"Epoch [{epoch}/{epochs}] Batch [{batch_idx}/{len(train_loader)}] | Loss: {loss.item():.4f}")
+                logger.info(f"Epoch [{epoch}/{epochs}] Batch [{batch_idx}/{len(train_loader)}] | Loss: {loss.item() * accumulation_steps:.4f}")
                 
         avg_train_loss = train_loss / len(train_loader)
         
@@ -121,9 +129,10 @@ def train(config_path, fast_dev_run=False):
         with torch.no_grad():
             for images, targets in val_loader:
                 images, targets = images.to(device), targets.to(device)
-                logits, gating_probs = model(images)
+                with torch.cuda.amp.autocast():
+                    logits, gating_probs = model(images)
+                    loss = criterion(logits, targets, gating_probs)
                 
-                loss = criterion(logits, targets, gating_probs)
                 val_loss += loss.item()
                 
                 preds = (torch.sigmoid(logits) > 0.5).long()
