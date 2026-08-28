@@ -158,10 +158,12 @@ def train(config_path, fast_dev_run=False):
             best_val_iou = avg_val_iou
             logger.info(f"New best validation mIoU: {best_val_iou:.4f}. Saving checkpoint...")
             save_checkpoint(
-                model=model,
-                optimizer=optimizer,
-                epoch=epoch,
-                metrics={"mIoU": best_val_iou},
+                state={
+                    "epoch": epoch,
+                    "model_state": model.state_dict(),
+                    "optimizer": optimizer.state_dict(),
+                    "metrics": {"mIoU": best_val_iou}
+                },
                 checkpoint_dir=log_cfg["checkpoint_dir"],
                 filename="segmote_best.pth"
             )
