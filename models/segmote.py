@@ -67,6 +67,9 @@ class SegMoTE(nn.Module):
         # Combine all tokens for the decoder: [B, 2 + N, 256]
         sparse_embeddings = torch.cat([prompt_tokens, exp_tokens], dim=1)
         
+        # HuggingFace SAM expects sparse_embeddings to be 4D: [batch_size, num_point_batches, num_tokens, embed_dim]
+        sparse_embeddings = sparse_embeddings.unsqueeze(1)
+        
         # Dense embeddings are empty since we use PPT
         dense_embeddings = torch.zeros(
             (B, 256, image_embeddings.shape[2], image_embeddings.shape[3]), 
