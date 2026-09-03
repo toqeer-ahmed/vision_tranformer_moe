@@ -7,11 +7,7 @@ import pandas as pd
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
 def setup_kaggle():
-    # If running on a Kaggle Kernel, authentication is either handled by Secrets or not needed if datasets are attached.
-    if os.environ.get('KAGGLE_KERNEL_RUN_TYPE'):
-        print("[1/6] Running inside Kaggle Notebook. Skipping manual API token setup.")
-        return
-        
+    # Always set the token so the kaggle CLI works automatically even in unlinked notebooks
     os.environ['KAGGLE_API_TOKEN'] = "KGAT_f92b021c2b42601bd960c76192014a55"
     os.system("mkdir -p ~/.kaggle")
     os.system("echo 'KGAT_f92b021c2b42601bd960c76192014a55' > ~/.kaggle/access_token")
