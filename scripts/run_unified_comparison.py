@@ -7,14 +7,20 @@ import pandas as pd
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
 def setup_kaggle():
+    # If running on a Kaggle Kernel, authentication is either handled by Secrets or not needed if datasets are attached.
+    if os.environ.get('KAGGLE_KERNEL_RUN_TYPE'):
+        print("[1/6] Running inside Kaggle Notebook. Skipping manual API token setup.")
+        return
+        
     os.environ['KAGGLE_API_TOKEN'] = "KGAT_f92b021c2b42601bd960c76192014a55"
     os.system("mkdir -p ~/.kaggle")
     os.system("echo 'KGAT_f92b021c2b42601bd960c76192014a55' > ~/.kaggle/access_token")
     os.system("chmod 600 ~/.kaggle/access_token")
-    print("[1/5] Kaggle authentication configured.")
+    os.system("chmod 600 ~/.kaggle/access_token")
+    print("[1/6] Kaggle authentication configured.")
 
 def download_and_format_dataset():
-    print("[2/5] Downloading BUSI dataset from Kaggle...")
+    print("[2/6] Downloading BUSI dataset from Kaggle...")
     os.system("kaggle datasets download -d aryashah2k/breast-ultrasound-images-dataset")
     os.system("unzip -q breast-ultrasound-images-dataset.zip -d busi_temp")
 
@@ -62,15 +68,15 @@ def update_config(path, epochs=15):
         yaml.dump(config, f, default_flow_style=False)
 
 def configure_models():
-    print("[3/5] Unifying configuration files for identical training conditions...")
+    print("[3/6] Unifying configuration files for identical training conditions...")
     update_config("configs/medical_segmentation.yaml", epochs=20)
     update_config("configs/moe_segmentation.yaml", epochs=20)
 
 def train_models():
-    print("[4/5] Training SegMoTE (Foundation Model)...")
+    print("[4/6] Training SegMoTE (Foundation Model)...")
     subprocess.run("PYTHONPATH=. python training/train_segmote.py --config configs/medical_segmentation.yaml", shell=True, check=True)
     
-    print("[4/5] Training MoE-Segformer (Baseline)...")
+    print("[4/6] Training MoE-Segformer (Baseline)...")
     subprocess.run("PYTHONPATH=. python training/train_moe.py --config configs/moe_segmentation.yaml", shell=True, check=True)
 
 def get_best_metric(log_dir, tag='Metrics/mIoU'):
@@ -86,7 +92,7 @@ def get_best_metric(log_dir, tag='Metrics/mIoU'):
     return best_val
 
 def compare_results():
-    print("[5/5] Parsing automated evaluation results...")
+    print("[5/6] Parsing automated evaluation results...")
     segmote_iou = get_best_metric('outputs/medical_segmentation/logs', 'Metrics/mIoU')
     segmote_dice = get_best_metric('outputs/medical_segmentation/logs', 'Metrics/mDice')
     
@@ -104,9 +110,21 @@ def compare_results():
     print(df.to_string(index=False))
     print("================================================================")
 
+def finalize_and_zip():
+    print("[6/6] Zipping results for Kaggle Output...")
+    shutil.make_archive('training_results', 'zip', 'outputs')
+    
+    # If running on Kaggle, move the zip to the main working directory so it's easily downloadable
+    # and clean up the dataset so the Kaggle output isn't cluttered.
+    if os.environ.get('KAGGLE_KERNEL_RUN_TYPE'):
+        shutil.move('training_results.zip', '/kaggle/working/training_results.zip')
+        print("      Results saved to /kaggle/working/training_results.zip")
+        print("      You can now download this zip file directly from the Kaggle 'Output' section!")
+
 if __name__ == "__main__":
     setup_kaggle()
     download_and_format_dataset()
     configure_models()
     train_models()
     compare_results()
+    finalize_and_zip()
