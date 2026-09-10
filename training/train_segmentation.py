@@ -15,6 +15,7 @@ try:
     from vision_transformer_research.models.segformer import SegFormerSegmentation
     from vision_transformer_research.evaluation.metrics import compute_segmentation_metrics
     from vision_transformer_research.evaluation.visualize_predictions import plot_segmentation_curves, plot_segmentation_predictions
+    from vision_transformer_research.evaluation.losses import CombinedSegmentationLoss
 except ImportError:
     import sys
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -25,6 +26,7 @@ except ImportError:
     from models.segformer import SegFormerSegmentation
     from evaluation.metrics import compute_segmentation_metrics
     from evaluation.visualize_predictions import plot_segmentation_curves, plot_segmentation_predictions
+    from evaluation.losses import CombinedSegmentationLoss
 
 def train(config_path: str):
     # Load config
@@ -106,13 +108,28 @@ def train(config_path: str):
     logger.info(f"Total parameters: {total_params:,}")
     logger.info(f"Trainable parameters: {trainable_params:,}")
     
-    # Loss & Optimizer
-    criterion = nn.CrossEntropyLoss()
+    # Loss Setup (Combined Loss support: CrossEntropy, Dice Loss, Focal Tversky Loss)
+    loss_type = train_cfg.get("loss_type", "focal_tversky")
+    dice_weight = float(train_cfg.get("dice_weight", 1.0))
+    criterion = CombinedSegmentationLoss(loss_type=loss_type, dice_weight=dice_weight).to(device)
+    logger.info(f"Configured CombinedSegmentationLoss (mode={loss_type}, dice_weight={dice_weight})")
+    
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=float(train_cfg["lr"]),
         weight_decay=float(train_cfg["weight_decay"])
     )
+    
+    # Scheduler Setup (CosineAnnealingLR)
+    use_cosine = train_cfg.get("use_cosine_scheduler", True)
+    if use_cosine:
+        min_lr = float(train_cfg.get("min_lr", 1.0e-6))
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=epochs_to_run, eta_min=min_lr
+        )
+        logger.info(f"Configured CosineAnnealingLR scheduler (T_max={epochs_to_run}, min_lr={min_lr})")
+    else:
+        scheduler = None
     
     # Tensorboard writer
     tb_writer = None
@@ -154,6 +171,10 @@ def train(config_path: str):
                 
         epoch_train_loss = running_loss / total_pixels
         train_losses.append(epoch_train_loss)
+        
+        current_lr = optimizer.param_groups[0]["lr"]
+        if scheduler:
+            scheduler.step()
         
         # Validation epoch
         model.eval()
@@ -201,7 +222,7 @@ def train(config_path: str):
         val_dices.append(metrics["mean_dice"])
         
         logger.info(
-            f"Epoch [{epoch}/{epochs_to_run}] - "
+            f"Epoch [{epoch}/{epochs_to_run}] (LR: {current_lr:.2e}) - "
             f"Train Loss: {epoch_train_loss:.4f} | "
             f"Val Loss: {epoch_val_loss:.4f} | "
             f"Val mIoU: {metrics['mean_iou']:.4f} | "
@@ -209,13 +230,13 @@ def train(config_path: str):
             f"Pixel Acc: {metrics['pixel_accuracy']:.4f}"
         )
         
-        # Tensorboard log
         if tb_writer:
             tb_writer.add_scalar("Loss/Train", epoch_train_loss, epoch)
             tb_writer.add_scalar("Loss/Val", epoch_val_loss, epoch)
             tb_writer.add_scalar("Metrics/mIoU", metrics["mean_iou"], epoch)
             tb_writer.add_scalar("Metrics/mDice", metrics["mean_dice"], epoch)
             tb_writer.add_scalar("Metrics/PixelAccuracy", metrics["pixel_accuracy"], epoch)
+            tb_writer.add_scalar("LearningRate", current_lr, epoch)
             
         # Checkpoint save
         state = {
