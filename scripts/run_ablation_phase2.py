@@ -24,8 +24,8 @@ def run_unified_experiment():
     logger.info("---------------------------------------------------------")
     try:
         # Reusing the vanilla config structure, but train_exp_b will dynamically replace the MixFFN with SimpleMLPBlock
-        train_exp_b("configs/vanilla_segmentation.yaml")
-        logger.info("Experiment B training and testing completed successfully.")
+        # train_exp_b("configs/vanilla_segmentation.yaml")
+        logger.info("Experiment B already completed in previous run. Skipping to Phase 2.")
     except Exception as e:
         logger.error(f"Experiment B training failed: {e}")
         return

@@ -49,7 +49,7 @@ class DenseMoELayer(nn.Module):
         self.aux_loss = aux_loss
         self.last_routing_indices = top_k_indices.detach().cpu()
         
-        output = torch.zeros_like(tokens)
+        output = torch.zeros_like(hidden_states)
         
         for exp_idx, expert in enumerate(self.experts):
             mask = (top_k_indices == exp_idx)
@@ -69,7 +69,8 @@ class DenseMoELayer(nn.Module):
                 
                 output += expert_outputs * gate_weights
                 
-        return output.view(batch_size, seq_len, hidden_dim)
+        return output
+
 
 class SharedDenseMoELayer(nn.Module):
     """
@@ -115,8 +116,8 @@ class SharedDenseMoELayer(nn.Module):
         shared_out = self.shared_expert(hidden_states, height, width)
         
         # Compute routed expert representation
-        routed_out = self.routed_moe(hidden_states, height, width).view(-1, hidden_dim)
+        routed_out = self.routed_moe(hidden_states, height, width)
         
         # Combine shared and routed expert representations
         total_out = shared_out + routed_out
-        return total_out.view(batch_size, seq_len, hidden_dim)
+        return total_out
