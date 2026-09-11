@@ -99,7 +99,6 @@ def train(config_path: str):
         num_classes=model_cfg["num_classes"],
         pretrained=model_cfg["pretrained"]
     )
-    model.to(device)
     logger.info(f"Model {model_cfg['name']} initialized with pretrained weights from {model_cfg.get('pretrained_name', model_cfg['pretrained'])}.")
 
     # REPLACE MIXFFN WITH SIMPLE MLP
@@ -112,6 +111,9 @@ def train(config_path: str):
             block.mlp = SimpleMLPBlock(hidden_dim, 4 * hidden_dim)
             replaced_count += 1
     logger.info(f"Replaced {replaced_count} SegFormer MixFFN layers with SimpleMLPBlock (Experiment B).")
+    
+    # Move model to device AFTER replacement
+    model.to(device)
     
     # Print model params
     total_params = sum(p.numel() for p in model.parameters())
