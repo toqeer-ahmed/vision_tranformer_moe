@@ -281,6 +281,10 @@ def train(config_path: str):
     test_preds = []
     test_targets = []
     
+    test_sample_images = None
+    test_sample_masks = None
+    test_sample_preds = None
+    
     with torch.no_grad():
         for batch_idx, (images, targets) in enumerate(test_loader):
             if fast_dev_run and batch_idx >= 2:
@@ -290,6 +294,11 @@ def train(config_path: str):
             preds = logits.argmax(dim=1).cpu()
             test_preds.append(preds)
             test_targets.append(targets)
+            
+            if batch_idx == 0:
+                test_sample_images = images.cpu()
+                test_sample_masks = targets.cpu()
+                test_sample_preds = preds
             
     test_preds = torch.cat(test_preds, dim=0)
     test_targets = torch.cat(test_targets, dim=0)
@@ -303,6 +312,11 @@ def train(config_path: str):
         f"Precision: {test_metrics['mean_precision']:.4f} | "
         f"Recall: {test_metrics['mean_recall']:.4f}"
     )
+    
+    if test_sample_images is not None:
+        plot_path = os.path.join(log_cfg["plot_dir"], "test_predictions_sample.png")
+        plot_segmentation_predictions(test_sample_images, test_sample_masks, test_sample_preds, plot_path)
+        logger.info(f"Saved test predictions visualization to {plot_path}")
     
     import json
     with open(os.path.join(log_cfg["log_dir"], "test_metrics.json"), "w") as f:
