@@ -121,14 +121,13 @@ def train(config_path: str):
             except ImportError:
                 from vision_transformer_research.datasets.medical_dataset import get_medical_dataloaders
             
-            train_loader, val_loader = get_medical_dataloaders(
+            train_loader, val_loader, test_loader = get_medical_dataloaders(
                 data_dir=dataset_cfg["data_dir"],
                 batch_size=dataset_cfg["batch_size"],
                 img_size=model_cfg["img_size"],
                 num_workers=dataset_cfg["num_workers"],
                 seed=train_cfg["seed"]
             )
-            test_loader = val_loader
         else:
             train_loader, val_loader, test_loader = get_segmentation_dataloaders(
                 dataset_name=dataset_cfg["name"],
@@ -316,6 +315,10 @@ def train(config_path: str):
             save_checkpoint(state, log_cfg["checkpoint_dir"], filename="best_model.pth")
             logger.info(f"New best validation mIoU (MoE): {best_val_iou:.4f}. Saved best model checkpoint.")
             
+            import json
+            with open(os.path.join(log_cfg["log_dir"], "best_val_metrics.json"), "w") as f:
+                json.dump(metrics, f, indent=4)
+            
             if sample_images is not None:
                 plot_path = os.path.join(log_cfg["plot_dir"], f"val_predictions_epoch_{epoch}.png")
                 plot_segmentation_predictions(sample_images, sample_masks, sample_preds, plot_path)
@@ -360,6 +363,10 @@ def train(config_path: str):
         f"Precision: {test_metrics['mean_precision']:.4f} | "
         f"Recall: {test_metrics['mean_recall']:.4f}"
     )
+    
+    import json
+    with open(os.path.join(log_cfg["log_dir"], "test_metrics.json"), "w") as f:
+        json.dump(test_metrics, f, indent=4)
     
     if tb_writer:
         tb_writer.close()

@@ -149,22 +149,24 @@ def get_medical_dataloaders(
     seed: int = 42
 ):
     """
-    Splits the medical dataset into 90% train and 10% validation, and creates dataloaders.
+    Splits the medical dataset into 80% train, 10% validation, and 10% test, and creates dataloaders.
     """
     train_transform, val_transform = get_medical_transforms(img_size)
     
     full_dataset = MedicalImageMaskDataset(data_dir, transform=None)
     
-    # Split datasets
-    train_len = int(0.9 * len(full_dataset))
-    val_len = len(full_dataset) - train_len
+    # Split datasets (80/10/10)
+    train_len = int(0.8 * len(full_dataset))
+    val_len = int(0.1 * len(full_dataset))
+    test_len = len(full_dataset) - train_len - val_len
     
-    train_subset, val_subset = random_split(
-        full_dataset, [train_len, val_len], generator=torch.Generator().manual_seed(seed)
+    train_subset, val_subset, test_subset = random_split(
+        full_dataset, [train_len, val_len, test_len], generator=torch.Generator().manual_seed(seed)
     )
     
     train_dataset = SubsetMedicalWrapper(train_subset, train_transform)
     val_dataset = SubsetMedicalWrapper(val_subset, val_transform)
+    test_dataset = SubsetMedicalWrapper(test_subset, val_transform) # Test uses val (no aug) transforms
     
     # Create dataloaders
     train_loader = DataLoader(
@@ -173,5 +175,8 @@ def get_medical_dataloaders(
     val_loader = DataLoader(
         val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True
     )
+    test_loader = DataLoader(
+        test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True
+    )
     
-    return train_loader, val_loader
+    return train_loader, val_loader, test_loader
