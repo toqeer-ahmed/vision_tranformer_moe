@@ -40,10 +40,7 @@ def replace_segformer_ffn_with_moe(model: SegFormerSegmentation, moe_config: dic
     target_stages = moe_config.get("stages", [0, 1, 2, 3])
     use_shared_expert = moe_config.get("use_shared_expert", False)
     
-    try:
-        from vision_transformer_research.models.moe.dense_moe_layer import DenseMoELayer, SharedDenseMoELayer
-    except ImportError:
-        from models.moe.dense_moe_layer import DenseMoELayer, SharedDenseMoELayer
+    from models.moe.dense_moe_layer import DenseMoELayer, SharedDenseMoELayer
         
     moe_cls = SharedDenseMoELayer if use_shared_expert else DenseMoELayer
     

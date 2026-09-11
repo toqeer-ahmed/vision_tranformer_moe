@@ -103,7 +103,7 @@ def train(config_path: str):
     logger.info(f"Model {model_cfg['name']} initialized with pretrained weights from {model_cfg.get('pretrained_name', model_cfg['pretrained'])}.")
 
     # REPLACE MIXFFN WITH SIMPLE MLP
-    from vision_transformer_research.models.moe.experts import SimpleMLPBlock
+    from models.moe.experts import SimpleMLPBlock
     segformer = model.model.segformer
     replaced_count = 0
     for stage_idx, stage in enumerate(segformer.encoder.block):
