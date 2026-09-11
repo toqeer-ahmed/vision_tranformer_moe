@@ -1,0 +1,416 @@
+import os
+import argparse
+import yaml
+import torch
+import torch.nn as nn
+from torch.utils.tensorboard import SummaryWriter
+import numpy as np
+
+# Adjust imports to allow executing as a direct script or as a module
+try:
+    from vision_transformer_research.utils.seed import set_seed
+    from vision_transformer_research.utils.logger import setup_logger
+    from vision_transformer_research.utils.checkpoint import save_checkpoint, load_checkpoint
+    from vision_transformer_research.datasets.segmentation_dataset import get_segmentation_dataloaders
+    from vision_transformer_research.models.segformer import SegFormerSegmentation
+    from vision_transformer_research.models.moe.moe_layer import MoELayer, SharedMoELayer
+    from vision_transformer_research.evaluation.metrics import compute_segmentation_metrics
+    from vision_transformer_research.evaluation.visualize_predictions import plot_segmentation_curves, plot_segmentation_predictions
+    from vision_transformer_research.evaluation.losses import CombinedSegmentationLoss, DiceLoss, FocalTverskyLoss
+except ImportError:
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from utils.seed import set_seed
+    from utils.logger import setup_logger
+    from utils.checkpoint import save_checkpoint, load_checkpoint
+    from datasets.segmentation_dataset import get_segmentation_dataloaders
+    from models.segformer import SegFormerSegmentation
+    from models.moe.moe_layer import MoELayer, SharedMoELayer
+    from evaluation.metrics import compute_segmentation_metrics
+    from evaluation.visualize_predictions import plot_segmentation_curves, plot_segmentation_predictions
+    from evaluation.losses import CombinedSegmentationLoss, DiceLoss, FocalTverskyLoss
+
+def replace_segformer_ffn_with_moe(model: SegFormerSegmentation, moe_config: dict, logger) -> int:
+    """
+    Traverses the Segformer encoder stages and replaces MLP (MixMLP) layers
+    with custom MoELayers or SharedMoELayers dynamically.
+    """
+    segformer = model.model.segformer
+    replaced_count = 0
+    target_stages = moe_config.get("stages", [0, 1, 2, 3])
+    use_shared_expert = moe_config.get("use_shared_expert", False)
+    
+    try:
+        from vision_transformer_research.models.moe.dense_moe_layer import DenseMoELayer, SharedDenseMoELayer
+    except ImportError:
+        from models.moe.dense_moe_layer import DenseMoELayer, SharedDenseMoELayer
+        
+    moe_cls = SharedDenseMoELayer if use_shared_expert else DenseMoELayer
+    
+    for stage_idx, stage in enumerate(segformer.encoder.block):
+        if stage_idx not in target_stages:
+            continue
+        hidden_dim = segformer.config.hidden_sizes[stage_idx]
+        
+        for block_idx, block in enumerate(stage):
+            moe_layer = moe_cls(
+                hidden_dim=hidden_dim,
+                num_experts=moe_config["num_experts"],
+                top_k=moe_config["top_k"],
+                capacity_factor=moe_config["capacity_factor"],
+                noisy_gating=moe_config["noisy_gating"],
+                balance_loss_coef=moe_config["balance_loss_coef"]
+            )
+            block.mlp = moe_layer
+            replaced_count += 1
+            
+    arch_name = "Shared-Expert MoELayers" if use_shared_expert else "MoELayers"
+    logger.info(f"Successfully replaced {replaced_count} Segformer Feed-Forward blocks with custom {arch_name} in stages {target_stages}.")
+    return replaced_count
+
+def get_moe_auxiliary_loss(model: nn.Module) -> torch.Tensor:
+    """
+    Retrieves and sums the routing balance losses from all MoELayers and SharedMoELayers.
+    """
+    aux_loss = 0.0
+    for module in model.modules():
+        if isinstance(module, (MoELayer, SharedMoELayer)):
+            aux_loss += module.aux_loss
+    return aux_loss
+
+def train(config_path: str):
+    # Load config
+    with open(config_path, 'r') as f:
+        config = yaml.safe_load(f)
+        
+    # Extract details
+    model_cfg = config["model"]
+    dataset_cfg = config["dataset"]
+    train_cfg = config["training"]
+    log_cfg = config["logging"]
+    moe_cfg = model_cfg["moe"]
+    
+    # Set seed
+    set_seed(train_cfg["seed"])
+    
+    # Setup logger
+    logger = setup_logger("train_exp_d", log_dir=log_cfg["log_dir"])
+    logger.info(f"Starting Experiment D (Spatially-Aware MoE) training for {model_cfg['name']} on {dataset_cfg['name']} dataset.")
+    
+    # Check for fast_dev_run flag
+    fast_dev_run = train_cfg.get("fast_dev_run", False)
+    if fast_dev_run:
+        logger.warning("FAST_DEV_RUN is enabled! Training will run for 1 epoch and only a few batches.")
+        epochs_to_run = 1
+    else:
+        epochs_to_run = train_cfg["epochs"]
+    
+    # Setup device
+    device = torch.device(train_cfg["device"] if torch.cuda.is_available() else "cpu")
+    logger.info(f"Using device: {device}")
+    
+    # Dataloaders
+    logger.info("Initializing datasets and dataloaders...")
+    if fast_dev_run:
+        logger.warning("Using random mock data for fast development run to bypass slow dataset downloads.")
+        mock_images = torch.randn(10, 3, model_cfg["img_size"], model_cfg["img_size"])
+        mock_masks = torch.randint(0, model_cfg["num_classes"], (10, model_cfg["img_size"], model_cfg["img_size"]))
+        mock_dataset = torch.utils.data.TensorDataset(mock_images, mock_masks)
+        train_loader = torch.utils.data.DataLoader(mock_dataset, batch_size=dataset_cfg["batch_size"], shuffle=True)
+        val_loader = torch.utils.data.DataLoader(mock_dataset, batch_size=dataset_cfg["batch_size"], shuffle=False)
+        test_loader = torch.utils.data.DataLoader(mock_dataset, batch_size=dataset_cfg["batch_size"], shuffle=False)
+    else:
+        if dataset_cfg["name"].lower() == "medical-image-mask":
+            try:
+                from datasets.medical_dataset import get_medical_dataloaders
+            except ImportError:
+                from vision_transformer_research.datasets.medical_dataset import get_medical_dataloaders
+            
+            train_loader, val_loader, test_loader = get_medical_dataloaders(
+                data_dir=dataset_cfg["data_dir"],
+                batch_size=dataset_cfg["batch_size"],
+                img_size=model_cfg["img_size"],
+                num_workers=dataset_cfg["num_workers"],
+                seed=train_cfg["seed"]
+            )
+        else:
+            train_loader, val_loader, test_loader = get_segmentation_dataloaders(
+                dataset_name=dataset_cfg["name"],
+                data_dir=dataset_cfg["data_dir"],
+                batch_size=dataset_cfg["batch_size"],
+                img_size=model_cfg["img_size"],
+                num_workers=dataset_cfg["num_workers"],
+                seed=train_cfg["seed"]
+            )
+    
+    # Model
+    logger.info(f"Loading backbone SegFormer: {model_cfg['name']}...")
+    model = SegFormerSegmentation(
+        model_name=model_cfg["name"],
+        num_classes=model_cfg["num_classes"],
+        pretrained=model_cfg["pretrained"]
+    )
+    
+    # Dynamic swap to MoE Architecture
+    logger.info("Integrating Mixture of Experts (MoE) routing...")
+    replace_segformer_ffn_with_moe(model, moe_cfg, logger)
+    model.to(device)
+    
+    # Print model params
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    logger.info(f"Total parameters (MoE-augmented): {total_params:,}")
+    logger.info(f"Trainable parameters (MoE-augmented): {trainable_params:,}")
+    
+    # Loss Setup (Combined Loss support: CrossEntropy, Dice Loss, Focal Tversky Loss)
+    loss_type = train_cfg.get("loss_type", "focal_tversky")
+    dice_weight = float(train_cfg.get("dice_weight", 1.0))
+    criterion = CombinedSegmentationLoss(loss_type=loss_type, dice_weight=dice_weight).to(device)
+    logger.info(f"Configured CombinedSegmentationLoss (mode={loss_type}, dice_weight={dice_weight})")
+        
+    optimizer = torch.optim.AdamW(
+        model.parameters(),
+        lr=float(train_cfg["lr"]),
+        weight_decay=float(train_cfg["weight_decay"])
+    )
+    
+    # Scheduler Setup (CosineAnnealingLR)
+    use_cosine = train_cfg.get("use_cosine_scheduler", True)
+    if use_cosine:
+        min_lr = float(train_cfg.get("min_lr", 1.0e-6))
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=epochs_to_run, eta_min=min_lr
+        )
+        logger.info(f"Configured CosineAnnealingLR scheduler (T_max={epochs_to_run}, min_lr={min_lr})")
+    else:
+        scheduler = None
+    
+    # Tensorboard writer
+    tb_writer = None
+    if log_cfg["use_tensorboard"]:
+        tb_writer = SummaryWriter(log_dir=log_cfg["log_dir"])
+        
+    # Epoch records
+    train_losses, val_losses = [], []
+    val_dices, val_ious = [], []
+    
+    best_val_iou = 0.0
+    patience_counter = 0
+    patience = train_cfg["early_stopping_patience"]
+    
+    logger.info("Starting training loop...")
+    for epoch in range(1, epochs_to_run + 1):
+        # Training epoch
+        model.train()
+        running_loss = 0.0
+        running_main_loss = 0.0
+        running_aux_loss = 0.0
+        total_pixels = 0
+        
+        for batch_idx, (images, targets) in enumerate(train_loader):
+            if fast_dev_run and batch_idx >= 2:
+                break
+                
+            images, targets = images.to(device), targets.to(device)
+            
+            optimizer.zero_grad()
+            logits = model(images)
+            
+            main_loss = criterion(logits, targets)
+            aux_loss = get_moe_auxiliary_loss(model)
+            total_loss = main_loss + aux_loss
+            
+            total_loss.backward()
+            optimizer.step()
+            
+            running_loss += total_loss.item() * images.size(0)
+            running_main_loss += main_loss.item() * images.size(0)
+            running_aux_loss += aux_loss.item() * images.size(0)
+            total_pixels += images.size(0)
+            
+            if (batch_idx + 1) % 10 == 0 or fast_dev_run:
+                logger.info(
+                    f"Epoch [{epoch}/{epochs_to_run}] Batch [{batch_idx+1}/{len(train_loader)}] | "
+                    f"Loss: {total_loss.item():.4f} (Main: {main_loss.item():.4f}, Aux: {aux_loss.item():.4f})"
+                )
+                
+        epoch_train_loss = running_loss / total_pixels
+        epoch_train_main = running_main_loss / total_pixels
+        epoch_train_aux = running_aux_loss / total_pixels
+        train_losses.append(epoch_train_loss)
+        
+        current_lr = optimizer.param_groups[0]["lr"]
+        if scheduler:
+            scheduler.step()
+            
+        # Validation epoch
+        model.eval()
+        running_val_loss = 0.0
+        val_pixels = 0
+        
+        all_preds = []
+        all_targets = []
+        
+        sample_images = None
+        sample_masks = None
+        sample_preds = None
+        
+        with torch.no_grad():
+            for batch_idx, (images, targets) in enumerate(val_loader):
+                if fast_dev_run and batch_idx >= 2:
+                    break
+                images, targets = images.to(device), targets.to(device)
+                logits = model(images)
+                
+                main_loss = criterion(logits, targets)
+                aux_loss = get_moe_auxiliary_loss(model)
+                val_loss = main_loss + aux_loss
+                
+                running_val_loss += val_loss.item() * images.size(0)
+                val_pixels += images.size(0)
+                
+                preds = logits.argmax(dim=1)
+                all_preds.append(preds.cpu())
+                all_targets.append(targets.cpu())
+                
+                if batch_idx == 0:
+                    sample_images = images.cpu()
+                    sample_masks = targets.cpu()
+                    sample_preds = preds.cpu()
+                    
+        epoch_val_loss = running_val_loss / val_pixels
+        val_losses.append(epoch_val_loss)
+        
+        all_preds = torch.cat(all_preds, dim=0)
+        all_targets = torch.cat(all_targets, dim=0)
+        
+        metrics = compute_segmentation_metrics(all_preds, all_targets, num_classes=model_cfg["num_classes"])
+        val_ious.append(metrics["mean_iou"])
+        val_dices.append(metrics["mean_dice"])
+        
+        logger.info(
+            f"Epoch [{epoch}/{epochs_to_run}] (LR: {current_lr:.2e}) - "
+            f"Loss: {epoch_train_loss:.4f} (Main: {epoch_train_main:.4f}, Aux: {epoch_train_aux:.4f}) | "
+            f"Val Loss: {epoch_val_loss:.4f} | "
+            f"Val mIoU: {metrics['mean_iou']:.4f} | "
+            f"Val mDice: {metrics['mean_dice']:.4f}"
+        )
+        
+        if tb_writer:
+            tb_writer.add_scalar("Loss/Train", epoch_train_loss, epoch)
+            tb_writer.add_scalar("Loss/Train_Main", epoch_train_main, epoch)
+            tb_writer.add_scalar("Loss/Train_Aux", epoch_train_aux, epoch)
+            tb_writer.add_scalar("Loss/Val", epoch_val_loss, epoch)
+            tb_writer.add_scalar("Metrics/mIoU", metrics["mean_iou"], epoch)
+            tb_writer.add_scalar("Metrics/mDice", metrics["mean_dice"], epoch)
+            tb_writer.add_scalar("Metrics/PixelAccuracy", metrics["pixel_accuracy"], epoch)
+            tb_writer.add_scalar("LearningRate", current_lr, epoch)
+            
+        state = {
+            "epoch": epoch,
+            "state_dict": model.state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "best_iou": best_val_iou,
+        }
+        save_checkpoint(state, log_cfg["checkpoint_dir"], filename="last_checkpoint.pth")
+        
+        if metrics["mean_iou"] > best_val_iou or fast_dev_run:
+            best_val_iou = metrics["mean_iou"]
+            patience_counter = 0
+            save_checkpoint(state, log_cfg["checkpoint_dir"], filename="best_model.pth")
+            logger.info(f"New best validation mIoU (MoE): {best_val_iou:.4f}. Saved best model checkpoint.")
+            
+            import json
+            with open(os.path.join(log_cfg["log_dir"], "best_val_metrics.json"), "w") as f:
+                json.dump(metrics, f, indent=4)
+            
+        # EXPERIMENT D DIAGNOSTICS: Print Expert Utilization
+        total_counts = None
+        for name, module in model.named_modules():
+            if hasattr(module, "expert_token_counts"):
+                counts = module.expert_token_counts.detach().cpu()
+                if total_counts is None:
+                    total_counts = counts
+                else:
+                    total_counts += counts
+        if total_counts is not None:
+            total = total_counts.sum()
+            if total > 0:
+                percentages = (total_counts / total) * 100
+                logger.info(f"Epoch {epoch} Expert Utilization: " + " | ".join([f"E{i}: {p:.1f}%" for i, p in enumerate(percentages)]))
+        
+        if metrics["mean_iou"] > best_val_iou or fast_dev_run:
+            if sample_images is not None:
+                plot_path = os.path.join(log_cfg["plot_dir"], f"val_predictions_epoch_{epoch}.png")
+                plot_segmentation_predictions(sample_images, sample_masks, sample_preds, plot_path)
+                logger.info(f"Saved validation predictions visualization to {plot_path}")
+        else:
+            patience_counter += 1
+            logger.info(f"Validation mIoU did not improve. Early stopping patience: {patience_counter}/{patience}")
+            if patience_counter >= patience:
+                logger.info("Early stopping triggered. Training stopped.")
+                break
+                
+    plot_segmentation_curves(train_losses, val_losses, val_ious, val_dices, log_cfg["plot_dir"])
+    
+    logger.info("Loading best model for testing...")
+    best_path = os.path.join(log_cfg["checkpoint_dir"], "best_model.pth")
+    if os.path.exists(best_path):
+        load_checkpoint(best_path, model, device=device)
+        
+    model.eval()
+    test_preds = []
+    test_targets = []
+    
+    test_sample_images = None
+    test_sample_masks = None
+    test_sample_preds = None
+    
+    with torch.no_grad():
+        for batch_idx, (images, targets) in enumerate(test_loader):
+            if fast_dev_run and batch_idx >= 2:
+                break
+            images = images.to(device)
+            logits = model(images)
+            preds = logits.argmax(dim=1).cpu()
+            test_preds.append(preds)
+            test_targets.append(targets)
+            
+            if batch_idx == 0:
+                test_sample_images = images.cpu()
+                test_sample_masks = targets.cpu()
+                test_sample_preds = preds
+            
+    test_preds = torch.cat(test_preds, dim=0)
+    test_targets = torch.cat(test_targets, dim=0)
+    
+    test_metrics = compute_segmentation_metrics(test_preds, test_targets, num_classes=model_cfg["num_classes"])
+    logger.info(
+        f"Test Set Metrics (MoE) - "
+        f"mIoU: {test_metrics['mean_iou']:.4f} | "
+        f"mDice: {test_metrics['mean_dice']:.4f} | "
+        f"Pixel Acc: {test_metrics['pixel_accuracy']:.4f} | "
+        f"Precision: {test_metrics['mean_precision']:.4f} | "
+        f"Recall: {test_metrics['mean_recall']:.4f}"
+    )
+    
+    if test_sample_images is not None:
+        plot_path = os.path.join(log_cfg["plot_dir"], "test_predictions_sample.png")
+        plot_segmentation_predictions(test_sample_images, test_sample_masks, test_sample_preds, plot_path)
+        logger.info(f"Saved test predictions visualization to {plot_path}")
+    
+    import json
+    with open(os.path.join(log_cfg["log_dir"], "test_metrics.json"), "w") as f:
+        json.dump(test_metrics, f, indent=4)
+    
+    if tb_writer:
+        tb_writer.close()
+        
+    logger.info("Training process completed.")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Train MoE-augmented SegFormer Semantic Segmentation")
+    parser.add_argument("--config", type=str, default="configs/moe_segmentation.yaml", help="Path to config file")
+    args = parser.parse_args()
+    
+    train(args.config)

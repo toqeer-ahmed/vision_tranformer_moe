@@ -12,6 +12,7 @@ class TopKRouter(nn.Module):
         self.num_experts = num_experts
         self.top_k = top_k
         self.balance_loss_coef = balance_loss_coef
+        self.register_buffer("expert_token_counts", torch.zeros(num_experts))
         
     def forward(self, gating_logits: torch.Tensor):
         """
@@ -33,6 +34,13 @@ class TopKRouter(nn.Module):
         
         # Normalize weights over selection
         top_k_gates = top_k_gates / (top_k_gates.sum(dim=-1, keepdim=True) + 1e-6)
+        
+        # Track expert utilization
+        if self.training:
+            # Count how many tokens were dispatched to each expert
+            unique_elements, counts = torch.unique(top_k_indices, return_counts=True)
+            for el, count in zip(unique_elements, counts):
+                self.expert_token_counts[el] += count
         
         # Calculate auxiliary loss (load balancing)
         if self.training:
