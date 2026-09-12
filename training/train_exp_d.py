@@ -14,6 +14,7 @@ try:
     from vision_transformer_research.datasets.segmentation_dataset import get_segmentation_dataloaders
     from vision_transformer_research.models.segformer import SegFormerSegmentation
     from vision_transformer_research.models.moe.moe_layer import MoELayer, SharedMoELayer
+    from vision_transformer_research.models.moe.dense_moe_layer import DenseMoELayer, SharedDenseMoELayer
     from vision_transformer_research.evaluation.metrics import compute_segmentation_metrics
     from vision_transformer_research.evaluation.visualize_predictions import plot_segmentation_curves, plot_segmentation_predictions
     from vision_transformer_research.evaluation.losses import CombinedSegmentationLoss, DiceLoss, FocalTverskyLoss
@@ -26,6 +27,7 @@ except ImportError:
     from datasets.segmentation_dataset import get_segmentation_dataloaders
     from models.segformer import SegFormerSegmentation
     from models.moe.moe_layer import MoELayer, SharedMoELayer
+    from models.moe.dense_moe_layer import DenseMoELayer, SharedDenseMoELayer
     from evaluation.metrics import compute_segmentation_metrics
     from evaluation.visualize_predictions import plot_segmentation_curves, plot_segmentation_predictions
     from evaluation.losses import CombinedSegmentationLoss, DiceLoss, FocalTverskyLoss
@@ -69,9 +71,9 @@ def get_moe_auxiliary_loss(model: nn.Module) -> torch.Tensor:
     """
     Retrieves and sums the routing balance losses from all MoELayers and SharedMoELayers.
     """
-    aux_loss = 0.0
+    aux_loss = torch.tensor(0.0, device=next(model.parameters()).device)
     for module in model.modules():
-        if isinstance(module, (MoELayer, SharedMoELayer)):
+        if isinstance(module, (MoELayer, SharedMoELayer, DenseMoELayer, SharedDenseMoELayer)):
             aux_loss += module.aux_loss
     return aux_loss
 
