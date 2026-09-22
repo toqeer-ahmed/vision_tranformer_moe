@@ -1,0 +1,12 @@
+torch
+torchvision
+transformers<5.0.0
+timm
+albumentations
+opencv-python
+numpy
+matplotlib
+torchmetrics
+scikit-learn
+tensorboard
+pyyaml

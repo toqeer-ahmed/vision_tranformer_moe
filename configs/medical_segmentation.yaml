@@ -1,0 +1,39 @@
+model:
+  name: "nvidia/mit-b0" # Easily upgradeable to "nvidia/mit-b2" or "nvidia/mit-b3"
+  pretrained: true
+  num_classes: 2
+  img_size: 352
+  moe:
+    num_experts: 4
+    top_k: 2
+    capacity_factor: 1.2
+    noisy_gating: true
+    balance_loss_coef: 0.01
+    use_shared_expert: true # Modern DeepSeek-style Shared-Expert MoE
+    stages: [2, 3] # Replace FFN in high-level semantic stages (Stages 3 & 4)
+
+dataset:
+  name: "medical-image-mask"
+  data_dir: "data/medical_dataset" # Directory containing images/ and masks/
+  batch_size: 2
+  accumulation_steps: 4
+  num_workers: 2
+
+training:
+  lr: 1.0e-4
+  weight_decay: 0.01
+  epochs: 5
+  early_stopping_patience: 10
+  seed: 42
+  device: "cuda"
+  fast_dev_run: false
+  loss_type: "focal_tversky" # "focal_tversky", "combined", or "ce"
+  dice_weight: 1.0
+  use_cosine_scheduler: true
+  min_lr: 1.0e-6
+
+logging:
+  log_dir: "outputs/medical_segmentation/logs"
+  checkpoint_dir: "outputs/medical_segmentation/checkpoints"
+  plot_dir: "outputs/medical_segmentation/plots"
+  use_tensorboard: true
