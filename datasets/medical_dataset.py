@@ -22,10 +22,40 @@ class MedicalImageMaskDataset(Dataset):
         self.masks_dir = os.path.join(data_dir, "masks")
         
         if not os.path.exists(self.images_dir) or not os.path.exists(self.masks_dir):
-            raise FileNotFoundError(
-                f"Data directory must contain 'images/' and 'masks/' folders. "
-                f"Checked path: {data_dir}"
-            )
+            print(f"Data directory {data_dir} missing 'images/' or 'masks/'. Attempting automatic restructuring...")
+            import shutil
+            
+            # Find BUSI dataset in /kaggle/input
+            kaggle_input = "/kaggle/input"
+            found_busi = None
+            if os.path.exists(kaggle_input):
+                for root, dirs, files in os.walk(kaggle_input):
+                    if "Dataset_BUSI_with_GT" in dirs:
+                        found_busi = os.path.join(root, "Dataset_BUSI_with_GT")
+                        break
+                    # Or if the user just uploaded the contents directly
+                    if "benign" in dirs and "malignant" in dirs:
+                        found_busi = root
+                        break
+            
+            if found_busi:
+                print(f"Found BUSI dataset at {found_busi}. Copying and restructuring...")
+                os.makedirs(self.images_dir, exist_ok=True)
+                os.makedirs(self.masks_dir, exist_ok=True)
+                
+                all_pngs = glob.glob(os.path.join(found_busi, "**", "*.png"), recursive=True)
+                for file_path in all_pngs:
+                    filename = os.path.basename(file_path)
+                    if "mask" in filename.lower():
+                        shutil.copy2(file_path, os.path.join(self.masks_dir, filename))
+                    else:
+                        shutil.copy2(file_path, os.path.join(self.images_dir, filename))
+                print(f"Restructured {len(all_pngs)} files into {self.images_dir} and {self.masks_dir}")
+            else:
+                raise FileNotFoundError(
+                    f"Data directory must contain 'images/' and 'masks/' folders. "
+                    f"Checked path: {data_dir}. Also searched /kaggle/input but could not find BUSI."
+                )
             
         # Scan for images
         image_extensions = ("*.jpg", "*.jpeg", "*.png", "*.bmp")
