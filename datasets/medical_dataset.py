@@ -25,25 +25,37 @@ class MedicalImageMaskDataset(Dataset):
             print(f"Data directory {data_dir} missing 'images/' or 'masks/'. Attempting automatic restructuring...")
             import shutil
             
-            # Find BUSI dataset in /kaggle/input
-            kaggle_input = "/kaggle/input"
-            found_busi = None
-            if os.path.exists(kaggle_input):
-                for root, dirs, files in os.walk(kaggle_input):
-                    if "Dataset_BUSI_with_GT" in dirs:
-                        found_busi = os.path.join(root, "Dataset_BUSI_with_GT")
-                        break
-                    # Or if the user just uploaded the contents directly
-                    if "benign" in dirs and "malignant" in dirs:
-                        found_busi = root
-                        break
+            # If the source is in /kaggle/input (read-only), we need a writable cache dir
+            is_readonly = "kaggle/input" in os.path.abspath(data_dir).lower()
             
-            if found_busi:
-                print(f"Found BUSI dataset at {found_busi}. Copying and restructuring...")
+            if is_readonly:
+                cache_dir = f"/kaggle/working/data_cache_{os.path.basename(data_dir.strip('/'))}"
+                self.images_dir = os.path.join(cache_dir, "images")
+                self.masks_dir = os.path.join(cache_dir, "masks")
+                source_dir = data_dir
+            else:
+                source_dir = data_dir
+                # If data_dir is the hardcoded 'data/medical_dataset' and is empty, hunt for BUSI
+                if not os.path.exists(data_dir) or len(os.listdir(data_dir)) == 0:
+                    kaggle_input = "/kaggle/input"
+                    if os.path.exists(kaggle_input):
+                        for root, dirs, files in os.walk(kaggle_input):
+                            if "Dataset_BUSI_with_GT" in dirs:
+                                source_dir = os.path.join(root, "Dataset_BUSI_with_GT")
+                                break
+                            if "benign" in dirs and "malignant" in dirs:
+                                source_dir = root
+                                break
+
+            # Check if cache was already created in a previous run
+            if os.path.exists(self.images_dir) and os.path.exists(self.masks_dir) and len(os.listdir(self.images_dir)) > 0:
+                print(f"Restructured dataset already exists at {self.images_dir}. Skipping.")
+            elif source_dir and os.path.exists(source_dir):
+                print(f"Found source dataset at {source_dir}. Copying and restructuring to {self.images_dir}...")
                 os.makedirs(self.images_dir, exist_ok=True)
                 os.makedirs(self.masks_dir, exist_ok=True)
                 
-                all_pngs = glob.glob(os.path.join(found_busi, "**", "*.png"), recursive=True)
+                all_pngs = glob.glob(os.path.join(source_dir, "**", "*.png"), recursive=True)
                 for file_path in all_pngs:
                     filename = os.path.basename(file_path)
                     if "mask" in filename.lower():
@@ -54,7 +66,7 @@ class MedicalImageMaskDataset(Dataset):
             else:
                 raise FileNotFoundError(
                     f"Data directory must contain 'images/' and 'masks/' folders. "
-                    f"Checked path: {data_dir}. Also searched /kaggle/input but could not find BUSI."
+                    f"Checked path: {data_dir}. Could not find valid source data."
                 )
             
         # Scan for images
