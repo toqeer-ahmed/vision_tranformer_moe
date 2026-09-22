@@ -54,7 +54,7 @@ def replace_swin_ffn_with_moe(model, moe_cfg, logger=None):
 
     for stage_idx, stage in enumerate(model.backbone.encoder.layers):
         for block_idx, block in enumerate(stage.blocks):
-            hidden_dim = block.output.dense.in_features
+            hidden_dim = block.intermediate.dense.in_features
             
             moe_layer = DenseMoELayer(
                 hidden_dim=hidden_dim,
