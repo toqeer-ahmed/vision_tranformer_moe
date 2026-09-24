@@ -55,14 +55,18 @@ class MedicalImageMaskDataset(Dataset):
                 os.makedirs(self.images_dir, exist_ok=True)
                 os.makedirs(self.masks_dir, exist_ok=True)
                 
-                all_pngs = glob.glob(os.path.join(source_dir, "**", "*.png"), recursive=True)
-                for file_path in all_pngs:
+                image_exts = ("*.png", "*.jpg", "*.jpeg", "*.bmp")
+                all_images = []
+                for ext in image_exts:
+                    all_images.extend(glob.glob(os.path.join(source_dir, "**", ext), recursive=True))
+                
+                for file_path in all_images:
                     filename = os.path.basename(file_path)
-                    if "mask" in filename.lower():
+                    if "mask" in filename.lower() or "_gt" in filename.lower():
                         shutil.copy2(file_path, os.path.join(self.masks_dir, filename))
                     else:
                         shutil.copy2(file_path, os.path.join(self.images_dir, filename))
-                print(f"Restructured {len(all_pngs)} files into {self.images_dir} and {self.masks_dir}")
+                print(f"Restructured {len(all_images)} files into {self.images_dir} and {self.masks_dir}")
             else:
                 raise FileNotFoundError(
                     f"Data directory must contain 'images/' and 'masks/' folders. "
@@ -82,6 +86,12 @@ class MedicalImageMaskDataset(Dataset):
             # Search masks directory for a mask file that starts with this stem
             mask_pattern = os.path.join(self.masks_dir, f"{base_name}*")
             matching_masks = glob.glob(mask_pattern)
+            
+            # Fallback for BUS-BRA: images are bus_XXXX, masks are mask_XXXX
+            if len(matching_masks) == 0 and base_name.startswith("bus_"):
+                busbra_mask_stem = base_name.replace("bus_", "mask_", 1)
+                mask_pattern = os.path.join(self.masks_dir, f"{busbra_mask_stem}*")
+                matching_masks = glob.glob(mask_pattern)
             
             # Select the first match with a valid image extension
             valid_masks = [m for m in matching_masks if m.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))]
