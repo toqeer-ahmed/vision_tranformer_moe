@@ -24,32 +24,37 @@ def load_model(config_path, checkpoint_path, device, model_name_key="vanilla"):
         config = yaml.safe_load(f)
         
     model_cfg = config['model']
-    arch_type = model_cfg.get('type', 'segformer')
-    
-    if model_name_key == "wide_control":
-        model = SegFormerSegmentation(
-            model_name=model_cfg['name'],
+    # Infer architecture type
+    arch_type = model_cfg.get('type', None)
+    if arch_type is None:
+        if 'backbone' in model_cfg or 'swin' in model_name_key.lower():
+            arch_type = 'swin'
+        else:
+            arch_type = 'segformer'
+            
+    if arch_type == 'swin':
+        model = SwinSegmentation(
+            model_name=model_cfg['backbone'],
             num_classes=model_cfg['num_classes'],
             pretrained=False
         )
-        dummy_logger = setup_logger("dummy", log_dir="/tmp")
-        replace_segformer_ffn_with_wide_ffn(model, model_cfg.get("moe", {}), dummy_logger)
-        
-    elif model_name_key == "moe_warm_init":
-        model = SegFormerSegmentation(
-            model_name=model_cfg['name'],
-            num_classes=model_cfg['num_classes'],
-            pretrained=False
-        )
-        dummy_logger = setup_logger("dummy", log_dir="/tmp")
-        replace_segformer_ffn_with_moe(model, model_cfg.get("moe", {}), dummy_logger)
-        
+        if "moe" in model_name_key.lower():
+            dummy_logger = setup_logger("dummy", log_dir="/tmp")
+            replace_swin_ffn_with_moe(model, config.get("moe", {}), dummy_logger)
+            
     elif arch_type == 'segformer':
         model = SegFormerSegmentation(
             model_name=model_cfg['name'],
             num_classes=model_cfg['num_classes'],
             pretrained=False
         )
+        if "moe" in model_name_key.lower():
+            dummy_logger = setup_logger("dummy", log_dir="/tmp")
+            replace_segformer_ffn_with_moe(model, config.get("moe", {}), dummy_logger)
+        elif "wide" in model_name_key.lower():
+            dummy_logger = setup_logger("dummy", log_dir="/tmp")
+            replace_segformer_ffn_with_wide_ffn(model, config.get("moe", {}), dummy_logger)
+            
     elif arch_type == 'segmote':
         model = SegMoTE(
             model_name=model_cfg['name'],
@@ -58,15 +63,6 @@ def load_model(config_path, checkpoint_path, device, model_name_key="vanilla"):
             top_k=model_cfg.get('top_k', 2),
             expert_type=model_cfg.get('expert_type', 'spatial')
         )
-    elif arch_type == 'swin':
-        model = SwinSegmentation(
-            model_name=model_cfg['backbone'],
-            num_classes=model_cfg['num_classes'],
-            pretrained=False
-        )
-        if "moe" in model_name_key:
-            dummy_logger = setup_logger("dummy", log_dir="/tmp")
-            replace_swin_ffn_with_moe(model, model_cfg.get("moe", {}), dummy_logger)
     
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     if 'state_dict' in checkpoint:
