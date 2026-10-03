@@ -71,3 +71,50 @@ def replace_swin_ffn_with_moe(model, moe_cfg, logger=None):
             replaced_count += 1
             
     return replaced_count
+
+def replace_swin_ffn_with_standard_moe(model, moe_cfg, logger=None):
+    from models.moe.standard_swin_moe_layer import StandardSwinMoELayer
+    
+    replaced_count = 0
+    
+    class SwinMoEWrapper(nn.Module):
+        def __init__(self, hidden_dim, moe_layer):
+            super().__init__()
+            self.moe_layer = moe_layer
+        def forward(self, hidden_states):
+            B, L, C = hidden_states.shape
+            H = W = int(L ** 0.5)
+            return self.moe_layer(hidden_states, H, W)
+
+    for stage_idx, stage in enumerate(model.backbone.encoder.layers):
+        for block_idx, block in enumerate(stage.blocks):
+            hidden_dim = block.intermediate.dense.in_features
+            
+            moe_layer = StandardSwinMoELayer(
+                hidden_dim=hidden_dim,
+                num_experts=moe_cfg.get("num_experts", 4),
+                top_k=moe_cfg.get("top_k", 2),
+                noisy_gating=moe_cfg.get("noisy_gating", True),
+                balance_loss_coef=moe_cfg.get("balance_loss_coef", 0.01)
+            )
+            
+            # WARM INITIALIZATION: Copy pretrained weights from native FFN to all experts
+            if moe_cfg.get("warm_init", False):
+                with torch.no_grad():
+                    for expert in moe_layer.experts:
+                        # Copy intermediate dense1 weights and biases
+                        expert.dense1.weight.copy_(block.intermediate.dense.weight)
+                        expert.dense1.bias.copy_(block.intermediate.dense.bias)
+                        # Copy output dense2 weights and biases
+                        expert.dense2.weight.copy_(block.output.dense.weight)
+                        expert.dense2.bias.copy_(block.output.dense.bias)
+                if logger:
+                    logger.info(f"Warm initialized StandardSwinMoELayer at Stage {stage_idx}, Block {block_idx}.")
+            
+            # Replace intermediate with MoE
+            block.intermediate = SwinMoEWrapper(hidden_dim, moe_layer)
+            # Replace output with Identity because MoE already outputs the projected dimensions
+            block.output = nn.Identity()
+            replaced_count += 1
+            
+    return replaced_count
