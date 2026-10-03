@@ -1,0 +1,12 @@
+model:
+  backbone: microsoft/swin-tiny-patch4-window7-224
+  name: swin_vanilla_seed123
+  num_classes: 3
+training:
+  batch_size: 16
+  early_stopping_patience: 10
+  img_size: 224
+  learning_rate: 0.0001
+  num_epochs: 50
+  seed: 123
+  weight_decay: 0.05

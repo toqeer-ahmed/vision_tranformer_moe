@@ -1,0 +1,19 @@
+model:
+  backbone: microsoft/swin-tiny-patch4-window7-224
+  name: swin_standard_moe_seed123
+  num_classes: 3
+moe:
+  balance_loss_coef: 0.01
+  capacity_factor: 1.2
+  noisy_gating: true
+  num_experts: 4
+  top_k: 2
+  warm_init: true
+training:
+  batch_size: 16
+  early_stopping_patience: 10
+  img_size: 224
+  learning_rate: 0.0001
+  num_epochs: 50
+  seed: 123
+  weight_decay: 0.05
