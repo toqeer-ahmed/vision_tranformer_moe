@@ -174,7 +174,7 @@ notebook = {
                 '    from datasets.medical_dataset import MedicalImageMaskDataset, get_medical_transforms\n',
                 '    from torch.utils.data import DataLoader\n',
                 '    \n',
-                '    transform = get_medical_transforms(224, is_train=False)\n',
+                '    _, transform = get_medical_transforms(224)\n',
                 '    busbra_dataset = MedicalImageMaskDataset("data/busbra_dataset", transform=transform)\n',
                 '    busbra_loader = DataLoader(busbra_dataset, batch_size=16, shuffle=False, num_workers=2)\n',
                 '    \n',
