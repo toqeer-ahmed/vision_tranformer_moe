@@ -38,9 +38,10 @@ def train(config_path: str):
     model_cfg = config["model"]
     train_cfg = config["training"]
     
-    # Generate timestamp for unique output dir
+    # Generate unique output dir incorporating model name
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    experiment_dir = os.path.join("outputs", f"swin_vanilla_{timestamp}")
+    experiment_name = model_cfg.get("name", "swin_vanilla")
+    experiment_dir = os.path.join("outputs", f"{experiment_name}_{timestamp}")
     log_dir = os.path.join(experiment_dir, "logs")
     checkpoint_dir = os.path.join(experiment_dir, "checkpoints")
     plot_dir = os.path.join(experiment_dir, "plots")
@@ -68,11 +69,12 @@ def train(config_path: str):
     except ImportError:
         from vision_transformer_research.datasets.medical_dataset import get_medical_dataloaders
         
+    workers = 2 if os.name != 'nt' else 0
     train_loader, val_loader, test_loader = get_medical_dataloaders(
         data_dir="data/medical_dataset",
         batch_size=train_cfg["batch_size"],
         img_size=train_cfg["img_size"],
-        num_workers=2,
+        num_workers=workers,
         seed=train_cfg["seed"]
     )
     
@@ -104,7 +106,8 @@ def train(config_path: str):
         optimizer, T_max=epochs_to_run, eta_min=1e-6
     )
     
-    scaler = torch.amp.GradScaler('cuda')
+    use_cuda = torch.cuda.is_available()
+    scaler = torch.amp.GradScaler('cuda', enabled=use_cuda)
     
     tb_writer = SummaryWriter(log_dir=log_dir) if SummaryWriter is not None else None
         
@@ -127,7 +130,7 @@ def train(config_path: str):
             images, targets = images.to(device), targets.to(device)
             
             optimizer.zero_grad()
-            with torch.amp.autocast('cuda'):
+            with torch.amp.autocast('cuda', enabled=use_cuda):
                 logits = model(images) 
                 loss = criterion(logits, targets)
             
@@ -158,7 +161,7 @@ def train(config_path: str):
             for batch_idx, (images, targets) in enumerate(val_loader):
                 images, targets = images.to(device), targets.to(device)
                 
-                with torch.amp.autocast('cuda'):
+                with torch.amp.autocast('cuda', enabled=use_cuda):
                     logits = model(images)
                     loss = criterion(logits, targets)
                 
@@ -222,7 +225,7 @@ def train(config_path: str):
     with torch.no_grad():
         for batch_idx, (images, targets) in enumerate(test_loader):
             images, targets = images.to(device), targets.to(device)
-            with torch.amp.autocast('cuda'):
+            with torch.amp.autocast('cuda', enabled=use_cuda):
                 logits = model(images)
             preds = logits.argmax(dim=1)
             test_accumulator.update(preds, targets)

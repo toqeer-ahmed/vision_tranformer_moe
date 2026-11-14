@@ -38,6 +38,19 @@ class SwinSegmentation(nn.Module):
         )
         return logits
 
+    def get_aux_loss(self):
+        """
+        Collects auxiliary load balancing losses from all active MoE layers.
+        """
+        total_aux = torch.tensor(0.0, device=next(self.parameters()).device)
+        for stage in self.backbone.encoder.layers:
+            for block in stage.blocks:
+                if hasattr(block, "intermediate") and hasattr(block.intermediate, "moe_layer"):
+                    moe_l = block.intermediate.moe_layer
+                    if hasattr(moe_l, "aux_loss") and moe_l.aux_loss is not None:
+                        total_aux = total_aux + moe_l.aux_loss
+        return total_aux
+
 def replace_swin_ffn_with_moe(model, moe_cfg, logger=None):
     from models.moe.dense_moe_layer import DenseMoELayer
     

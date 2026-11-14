@@ -38,9 +38,10 @@ def train(config_path: str):
     train_cfg = config["training"]
     moe_cfg = config["moe"]
     
-    # Generate timestamp for unique output dir
+    # Generate unique output dir incorporating model name
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    experiment_dir = os.path.join("outputs", f"swin_standard_moe_{timestamp}")
+    experiment_name = model_cfg.get("name", "swin_standard_moe")
+    experiment_dir = os.path.join("outputs", f"{experiment_name}_{timestamp}")
     log_dir = os.path.join(experiment_dir, "logs")
     checkpoint_dir = os.path.join(experiment_dir, "checkpoints")
     plot_dir = os.path.join(experiment_dir, "plots")
@@ -68,11 +69,12 @@ def train(config_path: str):
     except ImportError:
         from vision_transformer_research.datasets.medical_dataset import get_medical_dataloaders
         
+    workers = 2 if os.name != 'nt' else 0
     train_loader, val_loader, test_loader = get_medical_dataloaders(
         data_dir="data/medical_dataset",
         batch_size=train_cfg["batch_size"],
         img_size=train_cfg["img_size"],
-        num_workers=2,
+        num_workers=workers,
         seed=train_cfg["seed"]
     )
     
@@ -114,7 +116,8 @@ def train(config_path: str):
         optimizer, T_max=epochs_to_run, eta_min=1e-6
     )
     
-    scaler = torch.amp.GradScaler('cuda')
+    use_cuda = torch.cuda.is_available()
+    scaler = torch.amp.GradScaler('cuda', enabled=use_cuda)
     
     tb_writer = SummaryWriter(log_dir=log_dir) if SummaryWriter is not None else None
         
@@ -130,28 +133,40 @@ def train(config_path: str):
     for epoch in range(1, epochs_to_run + 1):
         # Training epoch
         model.train()
-        running_loss = 0.0
-        total_pixels = 0
+        running_seg_loss = 0.0
+        running_aux_loss = 0.0
+        running_total_loss = 0.0
+        total_samples = 0
         
         for batch_idx, (images, targets) in enumerate(train_loader):
             images, targets = images.to(device), targets.to(device)
             
             optimizer.zero_grad()
-            with torch.amp.autocast('cuda'):
+            with torch.amp.autocast('cuda', enabled=use_cuda):
                 logits = model(images) 
-                loss = criterion(logits, targets)
+                seg_loss = criterion(logits, targets)
+                aux_loss = model.get_aux_loss() if hasattr(model, "get_aux_loss") else torch.tensor(0.0, device=device)
+                total_loss = seg_loss + aux_loss
             
-            scaler.scale(loss).backward()
+            scaler.scale(total_loss).backward()
             scaler.step(optimizer)
             scaler.update()
             
-            running_loss += loss.item() * images.size(0)
-            total_pixels += images.size(0)
+            b_size = images.size(0)
+            running_seg_loss += seg_loss.item() * b_size
+            running_aux_loss += (aux_loss.item() if torch.is_tensor(aux_loss) else aux_loss) * b_size
+            running_total_loss += total_loss.item() * b_size
+            total_samples += b_size
             
             if (batch_idx + 1) % 10 == 0:
-                logger.info(f"Epoch [{epoch}/{epochs_to_run}] Batch [{batch_idx+1}/{len(train_loader)}] Loss: {loss.item():.4f}")
+                logger.info(
+                    f"Epoch [{epoch}/{epochs_to_run}] Batch [{batch_idx+1}/{len(train_loader)}] "
+                    f"Total Loss: {total_loss.item():.4f} (Seg: {seg_loss.item():.4f}, Aux: {aux_loss.item():.4f})"
+                )
                 
-        epoch_train_loss = running_loss / total_pixels
+        epoch_train_loss = running_total_loss / total_samples
+        epoch_seg_loss = running_seg_loss / total_samples
+        epoch_aux_loss = running_aux_loss / total_samples
         train_losses.append(epoch_train_loss)
         
         current_lr = optimizer.param_groups[0]["lr"]
@@ -168,7 +183,7 @@ def train(config_path: str):
             for batch_idx, (images, targets) in enumerate(val_loader):
                 images, targets = images.to(device), targets.to(device)
                 
-                with torch.amp.autocast('cuda'):
+                with torch.amp.autocast('cuda', enabled=use_cuda):
                     logits = model(images)
                     loss = criterion(logits, targets)
                 
@@ -194,7 +209,9 @@ def train(config_path: str):
         )
         
         if tb_writer:
-            tb_writer.add_scalar("Loss/Train", epoch_train_loss, epoch)
+            tb_writer.add_scalar("Loss/Train_Total", epoch_train_loss, epoch)
+            tb_writer.add_scalar("Loss/Train_Seg", epoch_seg_loss, epoch)
+            tb_writer.add_scalar("Loss/Train_Aux", epoch_aux_loss, epoch)
             tb_writer.add_scalar("Loss/Val", epoch_val_loss, epoch)
             tb_writer.add_scalar("Metrics/mIoU", metrics["mean_iou"], epoch)
             tb_writer.add_scalar("Metrics/mDice", metrics["mean_dice"], epoch)
@@ -232,7 +249,7 @@ def train(config_path: str):
     with torch.no_grad():
         for batch_idx, (images, targets) in enumerate(test_loader):
             images, targets = images.to(device), targets.to(device)
-            with torch.amp.autocast('cuda'):
+            with torch.amp.autocast('cuda', enabled=use_cuda):
                 logits = model(images)
             preds = logits.argmax(dim=1)
             test_accumulator.update(preds, targets)
