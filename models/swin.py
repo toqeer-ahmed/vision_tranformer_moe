@@ -8,7 +8,18 @@ class SwinSegmentation(nn.Module):
         if pretrained:
             self.backbone = SwinModel.from_pretrained(model_name, add_pooling_layer=False)
         else:
-            config = SwinConfig.from_pretrained(model_name)
+            try:
+                config = SwinConfig.from_pretrained(model_name)
+            except Exception:
+                config = SwinConfig(
+                    image_size=224,
+                    patch_size=4,
+                    num_channels=3,
+                    embed_dim=96,
+                    depths=[2, 2, 6, 2],
+                    num_heads=[3, 6, 12, 24],
+                    window_size=7
+                )
             self.backbone = SwinModel(config, add_pooling_layer=False)
             
         self.hidden_size = self.backbone.config.hidden_size

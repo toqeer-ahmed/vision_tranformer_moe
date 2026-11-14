@@ -7,7 +7,9 @@ repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if repo_root not in sys.path:
     sys.path.insert(0, repo_root)
 
-os.environ["HF_HUB_OFFLINE"] = "1"
+# Make sure HF_HUB_OFFLINE is not forced
+if "HF_HUB_OFFLINE" in os.environ:
+    del os.environ["HF_HUB_OFFLINE"]
 
 from models.swin import SwinSegmentation, replace_swin_ffn_with_standard_moe
 from evaluation.losses import CombinedSegmentationLoss
