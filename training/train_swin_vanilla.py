@@ -204,7 +204,13 @@ def train(config_path: str):
         if metrics["mean_iou"] > best_val_iou:
             best_val_iou = metrics["mean_iou"]
             patience_counter = 0
-            save_checkpoint(state, checkpoint_dir, filename="best_model.pth")
+            # Save best_model without optimizer state to conserve disk space (~113MB)
+            best_state = {
+                "epoch": epoch,
+                "state_dict": model.state_dict(),
+                "best_iou": best_val_iou,
+            }
+            save_checkpoint(best_state, checkpoint_dir, filename="best_model.pth")
             logger.info(f"New best validation mIoU: {best_val_iou:.4f}. Saved best model checkpoint.")
         else:
             patience_counter += 1
@@ -246,6 +252,16 @@ def train(config_path: str):
     
     if tb_writer:
         tb_writer.close()
+        
+    # Clean up intermediate last_checkpoint.pth to save disk space
+    last_ckpt = os.path.join(checkpoint_dir, "last_checkpoint.pth")
+    if os.path.exists(last_ckpt):
+        try:
+            os.remove(last_ckpt)
+            logger.info("Removed intermediate last_checkpoint.pth to conserve disk space.")
+        except Exception:
+            pass
+            
     logger.info("Training process completed.")
 
 if __name__ == "__main__":
