@@ -1,85 +1,111 @@
-# Statistical Analysis Protocol for Multi-Seed MoE Evaluation
+# Statistical Hypothesis Testing & Power Analysis: 10-Seed MoE Validation
 
-**Auditor**: Senior Computer Vision Research Engineer & Scientific Auditor  
+**Auditor & Lead Statistician**: Senior Computer Vision Research Engineer & Scientific Auditor  
 **Repository**: `D:\Study Material\Research\CV\vision_transformer_research`  
 **Target Milestone**: Phase 9 Corrected Multi-Seed Validation  
+**Sample Size**: $N = 10$ Matched Random Seeds ($df = 9$)  
+**Benchmark Target**: Zero-Shot Generalization on BUS-BRA ($N = 1,063$)  
 
 ---
 
 ## 1. Methodology: Matched-Pair Statistical Framework
 
-In machine learning experiments, comparing two architectures using independent two-sample t-tests is invalid because both architectures are evaluated on the exact same dataset splits and random seeds. The correct statistical framework is a **Matched-Pair Test**.
+In medical imaging experiments, comparing two architectures using independent two-sample tests is invalid because both architectures are evaluated on the exact same dataset splits, random seeds, and patient cases. The appropriate statistical framework is a **Matched-Pair Test**.
 
-Let $Y_{\text{MoE}, s}$ and $Y_{\text{Vanilla}, s}$ denote the evaluation metric (e.g., Foreground IoU) for seed $s \in \mathcal{S}$.  
-The paired difference is defined as:
+Let $Y_{\text{MoE}, s}$ and $Y_{\text{Vanilla}, s}$ denote the zero-shot evaluation metric (Foreground IoU, Foreground Dice, etc.) for random seed $s \in \mathcal{S} = \{42, 123, 314, 777, 999, 1001, 2026, 2027, 2718, 9001\}$.
+
+The paired difference for each seed is defined as:
 $$D_s = Y_{\text{MoE}, s} - Y_{\text{Vanilla}, s}$$
 
-For a set of $N$ seeds, the sample mean paired difference is:
-$$\bar{D} = \frac{1}{N} \sum_{s=1}^N D_s$$
-
-The sample standard deviation of paired differences is:
-$$s_D = \sqrt{\frac{1}{N-1} \sum_{s=1}^N (D_s - \bar{D})^2}$$
-
-The standard error of the mean difference is:
-$$\text{SE}(\bar{D}) = \frac{s_D}{\sqrt{N}}$$
+For $N = 10$ seeds:
+- Sample mean paired difference: $\bar{D} = \frac{1}{10} \sum_{s=1}^{10} D_s = +0.0035$ ($+0.35\%$)
+- Sample standard deviation of differences: $s_D = \sqrt{\frac{1}{9} \sum_{s=1}^{10} (D_s - \bar{D})^2} = 0.0483$ ($4.83\%$)
+- Standard Error of the Mean: $\text{SE}(\bar{D}) = \frac{s_D}{\sqrt{10}} = 0.0153$ ($1.53\%$)
 
 ---
 
-## 2. Hypothesis Testing Formulations
+## 2. Statistical Hypothesis Test Results
 
-### A. Two-Tailed Paired Student's t-Test
+### A. Two-Tailed Paired Student's $t$-Test
 - **Null Hypothesis ($H_0$)**: $\mu_D = 0$ (Conditional MoE routing has no effect on zero-shot segmentation performance).
 - **Alternative Hypothesis ($H_1$)**: $\mu_D \neq 0$ (Conditional MoE routing produces a significant difference in segmentation performance).
 - **Test Statistic**:
-  $$t = \frac{\bar{D}}{\text{SE}(\bar{D})} = \frac{\bar{D} \sqrt{N}}{s_D}$$
-- **Degrees of Freedom**: $df = N - 1$.
-- **Decision Rule**: Reject $H_0$ at significance level $\alpha = 0.05$ if $|t| > t_{\text{crit}, df}$.
-
-### B. Wilcoxon Signed-Rank Test (Non-Parametric Alternative)
-Because ultrasound segmentation metrics on small sample sizes may exhibit non-Gaussian distributions, the **Wilcoxon signed-rank test** must be computed in parallel:
-1. Rank the absolute differences $|D_s|$ in ascending order.
-2. Sum the ranks corresponding to positive differences ($W^+$) and negative differences ($W^-$).
-3. The test statistic is $W = \min(W^+, W^-)$.
-4. Reject $H_0$ if $W \le W_{\text{crit}}$ for sample size $N$.
+  $$t = \frac{\bar{D}}{\text{SE}(\bar{D})} = \frac{0.0035}{0.0153} = 0.2319$$
+- **Degrees of Freedom**: $df = 9$.
+- **Critical Threshold ($\alpha = 0.05$)**: $t_{\text{crit}} = \pm 2.262$.
+- **$p$-value**: $p = 0.8218$.
+- **Decision**: $|t| = 0.2319 < 2.262$. **Fail to reject $H_0$**. There is no statistically significant difference in mean performance.
 
 ---
 
-## 3. Power Analysis & Sample Size Constraints
-
-The table below illustrates the critical threshold requirements as the seed count increases:
-
-| Seed Count ($N$) | Degrees of Freedom ($df$) | Critical Value $t_{\text{crit}}$ ($\alpha=0.05$) | Minimum Detectable Cohen's $d_z$ ($80\%$ Power) | Statistical Verdict |
-| :---: | :---: | :---: | :---: | :--- |
-| **$N = 3$** (Original Phase 9) | 2 | **4.303** | $\sim 2.50$ | **INSUFFICIENT**. Extremely underpowered; can only detect massive, unrealistic effects. |
-| **$N = 5$** (Primary Corrected Tier) | 4 | **2.776** | $\sim 1.50$ | **ACCEPTABLE EXPLORATORY**. Adequate for detecting strong medium-to-large effects. |
-| **$N = 10$** (Extended Corrected Tier)| 9 | **2.262** | $\sim 0.95$ | **RECOMMENDED PUBLICATION STANDARD**. Robust power to detect real $+1.5\% - +2.5\%$ IoU gains. |
-
-> **Audit Insight**:  
-> With $N=3$, $|t|$ must exceed $4.303$ to achieve $p < 0.05$. In the original Phase 9 run, the mean gain in Foreground IoU was $+2.03\%$, but because $N=3$, claiming formal statistical confirmation was mathematically invalid. Expanding to $N=5$ or $N=10$ provides the necessary degrees of freedom.
+### B. Wilcoxon Signed-Rank Test (Non-Parametric)
+Because ultrasound segmentation metrics can exhibit skewness across random seeds:
+- Test statistic $W = 25.0$.
+- Two-sided $p$-value: $p = 0.8457$.
+- **Decision**: $p = 0.8457 \gg 0.05$. **Fail to reject $H_0$**. Non-parametric verification confirms that the median performance difference is indistinguishable from zero.
 
 ---
 
-## 4. Effect Size & Confidence Intervals
-
-In addition to $p$-values, research publications must report standardized effect sizes and confidence intervals:
-
-### A. Cohen's $d_z$ for Paired Samples:
-$$d_z = \frac{\bar{D}}{s_D}$$
-- **Interpretation**:
-  - $|d_z| \ge 0.2$: Small effect
-  - $|d_z| \ge 0.5$: Medium effect
-  - $|d_z| \ge 0.8$: Large effect
-  - $|d_z| \ge 1.2$: Very large effect
-
-### B. Two-Sided $95\%$ Confidence Interval:
-$$\text{CI}_{95\%} = \left[ \bar{D} - t_{\text{crit}, df} \cdot \frac{s_D}{\sqrt{N}}, \quad \bar{D} + t_{\text{crit}, df} \cdot \frac{s_D}{\sqrt{N}} \right]$$
-If the $95\%$ CI does not contain $0.0$, the improvement is statistically significant at $\alpha = 0.05$.
+### C. Standardized Effect Size: Cohen's $d_z$
+$$d_z = \frac{\bar{D}}{s_D} = \frac{0.0035}{0.0483} = 0.0733$$
+- **Standard Interpretation**:
+  - $|d_z| < 0.20$: **Negligible effect**
+  - $0.20 \le |d_z| < 0.50$: Small effect
+  - $0.50 \le |d_z| < 0.80$: Medium effect
+  - $|d_z| \ge 0.80$: Large effect
+- **Finding**: $d_z = 0.0733$ confirms that the observed mean difference is negligible in magnitude.
 
 ---
 
-## 5. Distinction: Statistical Significance vs. Clinical Usefulness
+### D. 95% Confidence Interval
+$$\text{CI}_{95\%} = \left[ \bar{D} - t_{\text{crit}} \cdot \text{SE}(\bar{D}), \quad \bar{D} + t_{\text{crit}} \cdot \text{SE}(\bar{D}) \right]$$
+$$\text{CI}_{95\%} = \left[ +0.35\% - (2.262 \times 1.53\%), \quad +0.35\% + (2.262 \times 1.53\%) \right] = [-3.09\%, +3.79\%]$$
+Because the 95% confidence interval cleanly spans zero, an advantage for Vanilla Swin or MoE cannot be claimed.
 
-A statistically significant result ($p < 0.05$) does not automatically translate to clinical utility:
-1. **Statistical Significance**: Demonstrates that the $+2.03\%$ Foreground IoU improvement is unlikely to have occurred purely by random initialization chance.
-2. **Clinical Utility**: In ultrasound diagnostic workflows, a Foreground IoU of $58.11\%$ indicates that the model correctly outlines the bulk of the lesion, but boundary margins still deviate from expert sonographer annotations by $>40\%$. The model is an effective proof-of-concept for cross-hardware robustness, but cannot be deployed as an autonomous diagnostic instrument.
+---
 
+## 3. The Real Scientific Discovery: Variance Ratio $F$-Test
+
+While the difference in *means* is not statistically significant, the difference in *variances* is highly significant:
+
+### Variance Ratio Test on Cross-Dataset Performance:
+- Vanilla Swin sample variance: $s_{\text{vanilla}}^2 = (0.0474)^2 = 2.246 \times 10^{-3}$
+- Standard-MLP MoE sample variance: $s_{\text{moe}}^2 = (0.0215)^2 = 4.613 \times 10^{-4}$
+- Variance Ratio:
+  $$F = \frac{s_{\text{vanilla}}^2}{s_{\text{moe}}^2} = \frac{2.246 \times 10^{-3}}{4.613 \times 10^{-4}} = 4.8702$$
+- Degrees of freedom: $df_1 = 9, \; df_2 = 9$.
+- Critical value ($\alpha = 0.05$, two-tailed): $F_{\text{crit}} = 4.026$.
+- Two-tailed $p$-value: **$p = 0.0273$**.
+- **Decision**: $F = 4.8702 > 4.026$, $p = 0.0273 < 0.05$. **Reject $H_0$ of equal variances**.
+
+### Multi-Metric Variance Test Summary:
+| Metric | Vanilla Variance ($s_V^2$) | MoE Variance ($s_{\text{MoE}}^2$) | Variance Ratio $F$ | Two-Tailed $p$-value | Significant at $\alpha=0.05$? |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Foreground IoU** | $2.246 \times 10^{-3}$ | $4.613 \times 10^{-4}$ | **$4.8702$** | **$0.0273$** | **YES** |
+| **Foreground Dice** | $1.584 \times 10^{-3}$ | $3.010 \times 10^{-4}$ | **$5.2623$** | **$0.0212$** | **YES** |
+| **Macro mIoU** | $7.952 \times 10^{-4}$ | $1.726 \times 10^{-4}$ | **$4.6067$** | **$0.0327$** | **YES** |
+| **Macro mDice** | $4.973 \times 10^{-4}$ | $9.868 \times 10^{-5}$ | **$5.0393$** | **$0.0244$** | **YES** |
+
+---
+
+## 4. Why the Original Phase 9 Audit Saw a Fake "+5.96%" Gain
+
+The original Phase 9 audit evaluated only 3 seeds: `42`, `123`, and `2026`.
+Looking at the 10-seed table:
+- **Seed 123**: Vanilla collapsed to $47.33\%$ IoU; MoE achieved $54.18\%$ ($\Delta = +6.85\%$).
+- **Seed 2026**: Vanilla collapsed to $50.69\%$ IoU; MoE achieved $59.25\%$ ($\Delta = +8.56\%$).
+- **Seed 42**: Vanilla achieved $56.78\%$ IoU; MoE achieved $59.24\%$ ($\Delta = +2.46\%$).
+
+Average delta across these 3 seeds: **$+5.96\%$**.
+This demonstrates why evaluating only 3 seeds is scientifically dangerous:
+Vanilla Swin happened to suffer initialization failures on 2 out of those 3 seeds, creating the false illusion of a massive $+5.96\%$ MoE architectural advantage.
+When tested across 10 seeds, Vanilla Swin succeeded on seeds 314, 777, 999, and 9001, outperforming MoE on 4 out of 10 seeds and bringing the true mean difference down to $+0.35\%$.
+
+---
+
+## 5. Clinical & Academic Formulation for Publication
+
+When writing the paper for submission to MICCAI / IEEE TMI:
+
+> **Recommended Paper Framing**:  
+> *"Mixture-of-Experts with auxiliary load-balancing loss does not act as a capacity amplifier for raw out-of-distribution segmentation accuracy ($\Delta = +0.35\%$, $p = 0.8218$). Rather, it functions as a structural regularizer against catastrophic initialization collapse. While standard Vision Transformers suffer severe seed sensitivity on small medical cohorts (variance $\sigma^2 = 2.25 \times 10^{-3}$, minimum IoU $47.33\%$), conditional MoE routing bounds the worst-case performance floor to $54.18\%$ and provides a statistically significant $79.5\%$ reduction in cross-dataset variance ($F = 4.87, p = 0.0273$)."*

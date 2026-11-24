@@ -1,53 +1,51 @@
 # Next Research Recommendations & Execution Roadmap
 
-**Auditor & Research Architect**: Senior Computer Vision Research Engineer  
+**Auditor & Research Architect**: Senior Computer Vision Research Engineer & Scientific Auditor  
 **Repository**: `D:\Study Material\Research\CV\vision_transformer_research`  
-**Milestone**: Transition from Phase 9 Audit to Controlled Phase 9B Execution  
+**Milestone**: Phase 9B Corrected Multi-Seed Validation Completed  
 
 ---
 
-## 1. Immediate Next Step: Phase 9B Cloud Execution
+## 1. Completed Milestone: Phase 9B Multi-Seed Verification
 
-All local preparation, architectural repair, unit testing, configuration generation, and notebook construction are complete. The immediate physical next step is **cloud GPU execution**:
+The 10-seed matched-pairs experiment comparing Vanilla Swin-Tiny against Standard-MLP Swin-MoE (with active auxiliary load-balancing loss) has been successfully executed on Kaggle GPU.
 
-### Execution Protocol:
-1. **Commit and Push Codebase**:
-   - Push all changes (including `models/swin.py`, `training/train_swin_standard_moe.py`, `tests/test_moe_aux_loss.py`, `configs/phase9_auxloss_corrected/`, and `Phase9_AuxLoss_Corrected_Reproducibility.ipynb`) to the GitHub remote repository.
-2. **Launch Kaggle Session**:
-   - Open a Kaggle notebook with Dual T4 or P100 GPU accelerator.
-   - Attach datasets: `busi-dataset` and `busbra-dataset`.
-   - Run `Phase9_AuxLoss_Corrected_Reproducibility.ipynb`.
-3. **Execute Primary 5-Seed Tier**:
-   - Train Vanilla Swin and Standard-MLP MoE across Seeds `[42, 123, 2026, 777, 999]`.
-   - Run zero-shot evaluation on BUS-BRA.
-   - Download the generated `results_phase9_auxloss_corrected.zip`.
-4. **Populate Verified Results**:
-   - Unpack the metrics into `results/phase9_auxloss_corrected/`.
-   - Update `CORRECTED_PHASE9_RESULTS.md` with the finalized numerical outcomes.
-   - Execute the paired Student's t-test and Wilcoxon signed-rank test.
+### Verified Findings:
+1. **Mean Performance Parity**:
+   - Vanilla Swin: $57.50\% \pm 4.74\%$ Foreground IoU, $72.91\% \pm 3.98\%$ Foreground Dice
+   - Standard-MLP MoE: $57.85\% \pm 2.15\%$ Foreground IoU, $73.28\% \pm 1.73\%$ Foreground Dice
+   - Paired difference: $\Delta = +0.35\%$ ($p = 0.8218$). The mean accuracy improvement is not statistically significant.
+2. **Statistically Significant Variance Reduction**:
+   - Standard-MLP MoE reduces cross-dataset variance by **$79.5\%$** ($F(9, 9) = 4.8702, \; p = 0.0273$).
+   - The minimum performance floor increases from $47.33\%$ (Vanilla) to $54.18\%$ (MoE).
+   - MoE functions as a **structural regularizer against initialization failure** rather than a capacity amplifier for mean accuracy.
 
 ---
 
-## 2. Medium-Term Roadmap: Benchmarking & Baselines
+## 2. Immediate Research Steps: Paper Framing & Next Baselines
 
-Following the completion of the corrected Phase 9B multi-seed runs, the research program should advance through three strategic stages:
+With the Phase 9B reproducibility audit concluded, the research program proceeds into benchmarking and paper submission:
 
-### Stage 2: Classical CNN Benchmarks (Sanity Check)
-- **Scientific Rationale**: A common criticism from reviewers at MICCAI/IEEE TMI is:  
-  *"Does a complex 81M-parameter Vision Transformer MoE actually outperform a clean, properly-regularized 8M-parameter U-Net on a small medical dataset ($N=780$)?"*
+### Stage 2: Classical CNN Benchmarks (Reviewer Defense)
+- **Scientific Motivation**: A common critique at MICCAI / IEEE TMI is:  
+  *"Does an 81M-parameter Vision Transformer MoE actually outperform a simple, well-regularized 8M-parameter U-Net on a small medical cohort ($N=780$)?"*
 - **Models to Train on BUSI**:
-  1. **Standard U-Net** (Ronneberger et al., 2015): 4-stage encoder-decoder.
-  2. **Attention U-Net** (Oktay et al., 2018): Spatial attention gates on skip connections.
-- **Evaluation**: Zero-shot on BUS-BRA using identical preprocessing and resolution ($224 \times 224$).
+  1. **Standard U-Net** (Ronneberger et al., 2015): 4-stage encoder-decoder (~8M parameters).
+  2. **Attention U-Net** (Oktay et al., 2018): Spatial attention gates on skip connections (~12M parameters).
+- **Evaluation**: Zero-shot on BUS-BRA ($N=1,063$) under identical $224 \times 224$ preprocessing and thresholding.
 
-### Stage 3: Medical Foundation Model Comparison
+### Stage 3: Foundation Model Zero-Shot Comparison
 - **Models to Benchmark**:
-  1. **MedSAM** (Medical Segment Anything Model): Evaluated under:
-     - *Mode A (Oracle Box Prompt)*: Tight bounding box derived from ground truth mask with $\pm 10\text{px}$ jitter.
-     - *Mode B (Fully Automatic / Zero-Shot)*: Grid-point prompt with automatic mask selection.
-  2. **SAM 2** (Segment Anything Model 2): Test memory-bank feature caching on static 2D ultrasound frames.
+  1. **MedSAM** (Medical Segment Anything Model):
+     - Mode A: Box prompt with ground-truth bounding box $\pm 10\text{px}$ jitter.
+     - Mode B: Automatic grid-point prompt.
+  2. **SAM 2** (Segment Anything Model 2): Static 2D ultrasound evaluation.
 
-### Stage 4: ConvNeXt-MoE (MoE for Pure CNNs)
-- Formulate a hybrid architecture that replaces the pointwise $1 \times 1$ conv blocks of a **ConvNeXt-Tiny** backbone with a convolutional Mixture-of-Experts layer.
-- Test whether combining convolutional spatial inductive biases with conditional MoE routing outperforms transformer-based MoE on small-scale medical datasets.
+### Stage 4: ConvNeXt-MoE (Convolutional Mixture-of-Experts)
+- Replace the pointwise $1 \times 1$ convolutions of a ConvNeXt-Tiny backbone with convolutional MoE layers.
+- Test whether combining convolutional 2D inductive bias with conditional routing outperforms transformer-based MoE on small ultrasound datasets.
 
+### Stage 5: Academic Publication Strategy
+- **Core Contribution**: Frame the paper around **initialization stabilization, optimization robustness, and variance suppression** in resource-constrained medical vision transformers.
+- **Title Recommendation**:  
+  *"Mixture-of-Experts as a Structural Regularizer: Evaluating Cross-Dataset Generalization and Initialization Stability in Ultrasound Segmentation"*
