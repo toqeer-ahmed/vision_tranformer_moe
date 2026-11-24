@@ -1,0 +1,4 @@
+,Foreground_IoU,Foreground_IoU,Foreground_Dice,Foreground_Dice,Foreground_Precision,Foreground_Precision,Foreground_Recall,Foreground_Recall,mIoU,mIoU,mDice,mDice,Pixel_Accuracy,Pixel_Accuracy
+,mean,std,mean,std,mean,std,mean,std,mean,std,mean,std,mean,std
+Model,,,,,,,,,,,,,,
+Standard U-Net,0.5079,0.0368,0.6729,0.0333,0.8019,0.0473,0.5857,0.0649,0.7282,0.0193,0.8232,0.0172,0.9511,0.0028

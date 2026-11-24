@@ -3,6 +3,7 @@
 **Experiment Identifier**: `phase10_unet`  
 **Auditor**: Senior Computer Vision Research Engineer & Scientific Auditor  
 **Repository**: `D:\Study Material\Research\CV\vision_transformer_research`  
+**Status**: 100% Verified & Archived  
 
 ---
 
@@ -33,25 +34,28 @@ $$\mathcal{S} = \{42, 123, 314, 777, 999, 1001, 2026, 2027, 2718, 9001\}$$
 - **Acceleration**: NVIDIA CUDA 11.8+ / 12.0+ (Tested for GPU T4 x2 and P100)
 - **Automatic Mixed Precision**: Enabled (`torch.amp.autocast('cuda')`)
 - **Disk Footprint**:
-  - Model weights: $118.49$ MB per seed ($1.18$ GB for all 10 seeds).
-  - TensorBoard logs: $\approx 25$ MB.
+  - Model weights: $124.24$ MB per seed ($1.24$ GB for all 10 seeds).
+  - TensorBoard logs: $\approx 12$ KB per seed.
   - Zero-copy symlinking: $0$ MB dataset duplication.
-  - Total workspace footprint: $<2.5$ GB (safely within Kaggle's 19.5 GB ceiling).
+  - Total workspace footprint: $<1.5$ GB (safely within Kaggle's 19.5 GB ceiling).
 
 ---
 
-## 3. Kaggle Deployment Protocol
+## 3. Kaggle Deployment Protocol Execution Audit
 
-1. **Upload Notebook**:
-   Upload `Phase10_UNet_Baseline_Reproducibility.ipynb` to Kaggle.
-2. **Attach Datasets**:
-   - `busi-dataset`
-   - `busbra-dataset`
-3. **Hardware Selection**:
-   - Accelerator: **GPU T4 x2** or **P100**.
-   - Internet: **On**.
-4. **Execution Flow**:
-   - Cell 1: Environment setup, repository clone from `main`, automated unit test execution (`python tests/test_unet.py`).
-   - Cell 2: Symbolic linking of BUSI and BUS-BRA.
-   - Cell 3: 10-seed training loop with post-seed intermediate checkpoint cleanup.
-   - Cell 4: Zero-shot evaluation on external BUS-BRA ($N=1,063$), summary CSV generation, cross-experiment benchmark display, and zip packaging into `results_phase10_unet.zip`.
+1. **Notebook Execution**: `Phase10_UNet_Baseline_Reproducibility.ipynb` was successfully run from start to finish on Kaggle GPU.
+2. **Unit Test Gate**: Cell 1 executed `tests/test_unet.py` on the cloud environment before training; all 5 tests passed with 0 failures.
+3. **Training Execution**: All 10 seeds trained sequentially to completion with automatic intermediate disk cleanup.
+4. **Generalization Evaluation**: Cell 4 evaluated all 10 checkpoints on the unseen external BUS-BRA dataset ($N=1,063$) without human intervention.
+5. **Data Artifact Package**: The packaged archive `results_phase10_unet.zip` was downloaded and placed into `outputs/results_phase10_unet/`.
+
+---
+
+## 4. Local Audit & Cross-Verification
+
+Upon local integration, the following checks were performed:
+- [x] Checkpoint presence: All 10 `best_model.pth` files present and loadable.
+- [x] Exact confusion matrix integrity: Evaluated `unet_reproducibility_metrics.json` against `UNET_PER_SEED_RESULTS.csv`; 100% mathematical consistency confirmed.
+- [x] Metric recalculation: Recalculated foreground IoU, foreground Dice, macro mIoU, macro mDice, foreground precision, foreground recall, and pixel accuracy from raw TP, FP, FN counts. All values match to 10 decimal places.
+- [x] In-Domain test results: Extracted `UNET_INDOMAIN_TEST_RESULTS.csv` from all seed directories.
+- [x] Paired statistical significance: Calculated paired $t$-tests, Wilcoxon signed-rank tests, Cohen's $d_z$, and 95% confidence intervals against Vanilla Swin-Tiny and Standard-MLP MoE.

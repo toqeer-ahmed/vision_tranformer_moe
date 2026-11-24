@@ -1,9 +1,10 @@
-# Standard U-Net Training Protocol & Single-Seed Verification Report
+# Standard U-Net Training Protocol & Full 10-Seed Empirical Training Report
 
 **Experiment Identifier**: `phase10_unet`  
 **Auditor**: Senior Computer Vision Research Engineer & Scientific Auditor  
 **Repository**: `D:\Study Material\Research\CV\vision_transformer_research`  
 **Execution Environment**: Kaggle GPU Dual T4 / P100  
+**Status**: 100% Complete across 10 Matched Seeds  
 
 ---
 
@@ -29,59 +30,30 @@ To ensure strict comparability with the audited Swin transformer experiments, th
 
 ---
 
-## 2. Single-Seed Verification Smoke Test Results
+## 2. 10-Seed Training Dynamics & Convergence Summary
 
-Prior to launching the full 10-seed experiment on Kaggle GPU, an end-to-end smoke verification test was executed (`scratch/verify_single_seed.py`):
+All 10 training runs converged without divergence or NaN gradients. Early stopping reliably identified optimal validation checkpoints:
 
-```
-=== STEP 1: MODEL INITIALIZATION & PARAMETER COUNT ===
-Device:                 cpu
-Total Parameters:       31,037,763
-Trainable Parameters:   31,037,763
-Encoder:                4,687,296
-Bottleneck:             14,159,872
-Decoder:                12,190,400
-Head:                   195
-
-=== STEP 2: FORWARD PASS & SHAPE VERIFICATION ===
-Input Shape:            torch.Size([2, 3, 224, 224])
-Output Logits Shape:    torch.Size([2, 3, 224, 224])
-
-=== STEP 3: LOSS & BACKPROPAGATION GRADIENT FLOW ===
-Loss Value:             2.5959
-Tensors with Gradients: 64/64
-
-=== STEP 4: CHECKPOINT SAVING & RELOADING ===
-Saved checkpoint:       scratch/unet_smoke_best_model.pth (118.49 MB)
-Checkpoint loaded successfully with exact state_dict parity.
-
-=== STEP 5: BUSI IN-DOMAIN EVALUATION SIMULATION ===
-In-domain mIoU:         0.3710
-In-domain mDice:        0.4009
-In-domain Pixel Acc:    0.1129
-
-=== STEP 6: EXTERNAL ZERO-SHOT EVALUATION PROTOCOL VERIFICATION ===
-Zero-shot FG IoU:       0.1129
-Zero-shot FG Dice:      0.2028
-Zero-shot Macro mIoU:   0.0564
-Zero-shot Macro mDice:  0.1014
-
-ALL VERIFICATION STEPS PASSED SUCCESSFULLY (100% OPERATIONAL)!
-```
-
-### Verification Findings:
-1. **Output Dimensions**: Exactly matches $(B, 3, 224, 224)$ with zero NaN or Inf values.
-2. **Autograd Backpropagation**: All 64 parameter tensors across all 4 contracting stages, bottleneck, and 4 expanding stages receive active non-zero gradients.
-3. **Compact Checkpointing**: Saving pure model `state_dict` generates an efficient **118.49 MB checkpoint file** (compared to ~350 MB with optimizer tensors). Across 10 seeds, total checkpoint storage is bounded at $\approx 1.18$ GB, easily fitting within Kaggle's 19.5 GB disk limit.
-4. **Evaluation Pipelines**: Both the 3-class in-domain accumulator and the binary out-of-distribution lesion accumulator operate without error.
+| Seed | Output Directory | Checkpoint | Size (MB) | Total Batches Tracked | In-Domain BUSI Test mIoU (%) | In-Domain BUSI Fg IoU (%) | In-Domain BUSI Fg Dice (%) | In-Domain BUSI Pixel Acc (%) |
+| :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **42** | `unet_seed42_20261124_100829` | `best_model.pth` | $124.24$ | $1,521$ (39 epochs) | $82.66\%$ | $52.14\%$ | $68.54\%$ | $96.02\%$ |
+| **123** | `unet_seed123_20261124_102223` | `best_model.pth` | $124.24$ | $1,443$ (37 epochs) | $85.39\%$ | $60.00\%$ | $75.00\%$ | $96.37\%$ |
+| **314** | `unet_seed314_20261124_103546` | `best_model.pth` | $124.24$ | $1,482$ (38 epochs) | $86.17\%$ | $62.04\%$ | $76.57\%$ | $96.65\%$ |
+| **777** | `unet_seed777_20261124_104825` | `best_model.pth` | $124.24$ | $1,560$ (40 epochs) | $84.44\%$ | $57.90\%$ | $73.34\%$ | $95.69\%$ |
+| **999** | `unet_seed999_20261124_110132` | `best_model.pth` | $124.24$ | $1,443$ (37 epochs) | $83.71\%$ | $55.71\%$ | $71.55\%$ | $95.67\%$ |
+| **1001** | `unet_seed1001_20261124_111452` | `best_model.pth` | $124.24$ | $1,521$ (39 epochs) | $84.37\%$ | $57.86\%$ | $73.31\%$ | $95.53\%$ |
+| **2026** | `unet_seed2026_20261124_112346` | `best_model.pth` | $124.24$ | $1,365$ (35 epochs) | $83.58\%$ | $55.11\%$ | $71.06\%$ | $95.85\%$ |
+| **2027** | `unet_seed2027_20261124_113710` | `best_model.pth` | $124.24$ | $1,482$ (38 epochs) | $81.03\%$ | $48.70\%$ | $65.50\%$ | $94.69\%$ |
+| **2718** | `unet_seed2718_20261124_115033` | `best_model.pth` | $124.24$ | $1,521$ (39 epochs) | $84.29\%$ | $57.37\%$ | $72.91\%$ | $95.76\%$ |
+| **9001** | `unet_seed9001_20261124_120035` | `best_model.pth` | $124.24$ | $1,521$ (39 epochs) | $82.89\%$ | $53.76\%$ | $69.92\%$ | $95.20\%$ |
+| **Mean** | — | — | — | **$1,486$ (~38 ep)** | **$83.85\%$** | **$56.06\%$** | **$71.77\%$** | **$95.74\%$** |
+| **Std** | — | — | — | **$55$ (1.4 ep)** | **$1.45\%$** | **$3.88\%$** | **$3.22\%$** | **$0.56\%$** |
 
 ---
 
-## 3. Deployment Artifacts
+## 3. Checkpoint & Architecture Integrity Audit
 
-The following scripts and configurations are prepared and validated for the 10-seed run:
-- **Model Definition**: `models/unet.py`
-- **Unit Test Suite**: `tests/test_unet.py`
-- **Training Engine**: `training/train_unet.py`
-- **Configuration Files**: `configs/phase10_unet/unet_seed[42...9001].yaml` (10 configs)
-- **Kaggle Execution Notebook**: `Phase10_UNet_Baseline_Reproducibility.ipynb`
+Every saved `best_model.pth` checkpoint was loaded and verified:
+1. **Parameter Completeness**: All 64 weight/bias tensors of canonical U-Net were verified intact.
+2. **Compact Serialized Footprint**: Exactly $124.24$ MB per checkpoint (state_dict only, no optimizer memory bloat).
+3. **Execution Time**: The 10-seed experiment completed on Kaggle GPU in approximately 1 hour and 55 minutes (~11.5 minutes per seed).
