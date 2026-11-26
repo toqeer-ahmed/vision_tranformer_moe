@@ -1,0 +1,4 @@
+,mIoU,mIoU,Foreground_IoU,Foreground_IoU,Background_IoU,Background_IoU,mDice,mDice,Foreground_Dice,Foreground_Dice,Background_Dice,Background_Dice,Foreground_Precision,Foreground_Precision,Foreground_Recall,Foreground_Recall,Pixel_Accuracy,Pixel_Accuracy,Predicted_Volume_Pixels,Predicted_Volume_Pixels,GroundTruth_Volume_Pixels,GroundTruth_Volume_Pixels,Volume_Ratio,Volume_Ratio
+,mean,std,mean,std,mean,std,mean,std,mean,std,mean,std,mean,std,mean,std,mean,std,mean,std,mean,std,mean,std
+Model,,,,,,,,,,,,,,,,,,,,,,,,
+ResNet-50 U-Net (ImageNet-Pretrained),0.7235,0.0384,0.5036,0.0698,0.9435,0.0083,0.819,0.0342,0.6671,0.0648,0.9709,0.0044,0.7262,0.0713,0.6284,0.1034,0.9465,0.0082,7125240.2,1407693.132,8146649.0,0.0,0.8746,0.1728
