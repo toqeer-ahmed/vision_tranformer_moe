@@ -1,0 +1,17 @@
+model:
+  architecture: resnet50_unet_2d
+  freeze_bn: false
+  freeze_encoder: false
+  name: resnet50_unet_seed2718
+  num_classes: 3
+  pretrained: true
+  use_transpose_conv: false
+  weights: IMAGENET1K_V1
+training:
+  batch_size: 16
+  early_stopping_patience: 10
+  img_size: 224
+  learning_rate: 0.0001
+  num_epochs: 50
+  seed: 2718
+  weight_decay: 0.05
