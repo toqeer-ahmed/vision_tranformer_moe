@@ -1,0 +1,15 @@
+model:
+  architecture: attention_unet_2d
+  base_channels: 64
+  bilinear: false
+  in_channels: 3
+  name: attention_unet_seed9001
+  num_classes: 3
+training:
+  batch_size: 16
+  early_stopping_patience: 10
+  img_size: 224
+  learning_rate: 0.0001
+  num_epochs: 50
+  seed: 9001
+  weight_decay: 0.05
