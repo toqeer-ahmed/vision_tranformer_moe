@@ -29,11 +29,11 @@ All models were trained on BUSI ($80\%$ train, $10\%$ val, $10\%$ test) across *
 
 1. **Hierarchy of Generalization**:
    $$\text{Swin-MoE} (57.85\%) \approx \text{Vanilla Swin} (57.50\%) > \text{Standard U-Net} (50.79\%) \approx \text{ResNet-50 U-Net} (50.36\%) > \text{Attention U-Net} (45.35\%)$$
-2. **MoE Variance Reduction**:
-   Standard-MLP Swin-MoE achieves the highest stability across seeds, reducing standard deviation from $4.74\%$ (Vanilla Swin) to **$2.15\%$** (a $54.6\%$ reduction in variance), indicating that sparse expert routing acts as an ensemble-like stabilizer under domain shift.
+2. **MoE Variance Characteristics**:
+   Standard-MLP Swin-MoE exhibits lower sample variance across the ten seeds ($s = 2.15\%$ vs $4.74\%$), though this observation cannot be causally attributed to sparse expert routing without a capacity-matched dense control (due to Swin-MoE's $81.15\text{M}$ total capacity vs Swin-Tiny's $29.29\text{M}$).
 3. **The Pretraining Decoupling**:
-   Pretraining improves in-domain convergence and IoU ($56.06\% \to 59.26\%$) and helps relieve extreme volume shrinkage ($0.74\times \to 0.87\times$), but **does not resolve the cross-dataset generalization gap** ($50.36\%$ vs. $57.50\%$).
-4. **Volume Calibration Pathology in CNNs**:
-   Both randomly initialized CNNs (Standard U-Net and Attention U-Net) severely under-segment lesions ($0.74\times$ and $0.64\times$). Pretraining mitigates this partially ($0.87\times$), but Vision Transformers achieve superior volume calibration ($1.10\times$, dataset-level $0.97\times$).
+   Pretraining improves in-domain validation convergence ($63.85\% \to 68.22\%$) and yields a descriptive in-domain test FG IoU increase ($56.06\% \to 59.26\%$, though not statistically significant, paired $p = 0.194$), and mitigates extreme mask shrinkage ($0.74\times \to 0.87\times$), but **does not resolve the cross-dataset generalization gap** ($50.36\%$ vs. $57.50\%$).
+4. **2D Mask Coverage Shifts in CNNs**:
+   Both randomly initialized CNNs (Standard U-Net and Attention U-Net) under-segment lesions ($0.74\times$ and $0.64\times$ 2D pixel-count ratios). Pretraining mitigates this partially ($0.87\times$), while Vision Transformers maintain closer 2D coverage parity ($1.10\times$).
 5. **Attention Gate Degradation Under Domain Shift**:
    Spatial attention gates (Oktay et al., 2018) act as diffuse scalar attenuators rather than sharp focus masks under ultrasound domain shift, degrading zero-shot FG IoU by $-5.44\%$ relative to canonical U-Net ($45.35\%$ vs. $50.79\%$).
