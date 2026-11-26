@@ -13,21 +13,23 @@
 ### The Phase 11 Research Hypothesis:
 > *"Additive attention gates on skip connections filter background noise and suppress irrelevant activations, enabling the decoder to recover subtle peripheral tumor margins and resolve the volume under-prediction pathology ($0.74\times$ volume ratio, $58.57\%$ recall) observed in Standard U-Net."*
 
-### Empirical Verdict: **DECISIVELY FALSIFIED**
+### Empirical Verdict: Hypothesis Not Supported by Empirical Evidence
+*(Non-Significant Paired Difference: $t(9) = -1.71, p = 0.1225$, Holm $p = 0.7168$)*
 
 Across 10 matched random seeds evaluated on $1,063$ unseen zero-shot BUS-BRA images:
-1. **Recall Collapsed Rather Than Improved**:
+1. **Recall Failed to Improve**:
    - Standard U-Net Recall: **$58.57\% \pm 6.49\%$**
    - Attention U-Net Recall: **$51.33\% \pm 11.32\%$**
-   - Paired Delta: **$-7.24\%$** (95% CI: $[-17.41\%, +2.93\%]$, $d_z = -0.51$).
-2. **Volume Under-Prediction Worsened**:
+   - Paired Delta: **$-7.24\%$** (95% CI: $[-17.41\%, +2.93\%]$, $d_z = -0.51$, $p = 0.1416$, Holm $p = 0.7168$).
+   - *Statistical Conclusion*: The empirical data fail to demonstrate any recall benefit from attention gates. Because the confidence interval encompasses zero, this represents failure to establish an improvement rather than statistically proven deterioration.
+2. **Volume Under-Prediction Remained Severe**:
    - Total GT Foreground Volume: **$8,146,649$ pixels** ($8.15\text{ MP}$).
    - Standard U-Net Predicted: **$6.00\text{ MP}$** ($0.736\times \pm 0.121\times$).
    - Attention U-Net Predicted: **$5.19\text{ MP}$** ($0.638\times \pm 0.162\times$).
-   - Delta in Volume Ratio: **$-0.099\times$** ($-9.88\%$).
-3. **Precision Remained Flat at the Ceiling**:
+   - Delta in Volume Ratio: **$-0.099\times$** ($-9.88\%$, $p = 0.1808$).
+3. **Precision Remained at Parity**:
    - Standard U-Net Precision: **$80.19\% \pm 4.73\%$**
-   - Attention U-Net Precision: **$81.38\% \pm 4.38\%$** ($\Delta = +1.19\%$, $p = 0.5518$).
+   - Attention U-Net Precision: **$81.38\% \pm 4.38\%$** ($\Delta = +1.19\%$, $95\%$ CI: $[-3.17\%, +5.55\%]$, $p = 0.5518$).
 
 ---
 
@@ -83,38 +85,37 @@ Comparing in-domain BUSI test performance against zero-shot BUS-BRA performance 
 
 | Architecture | In-Domain BUSI Test IoU (%) | Zero-Shot BUS-BRA Fg IoU (%) | Absolute Domain-Shift Drop | Relative Generalization Drop |
 | :--- | :---: | :---: | :---: | :---: |
-| **Standard U-Net** | $55.33 \pm 3.99$ | $50.79 \pm 3.68$ | **$-4.54\%$** | $-8.20\%$ |
+| **Standard U-Net** | $56.06 \pm 3.88$ | $50.79 \pm 3.68$ | **$-5.27\%$** | $-9.40\%$ |
 | **Attention U-Net** | $56.10 \pm 2.53$ | $45.35 \pm 8.64$ | **$-10.75\%$** | **$-19.16\%$** |
 
-Attention U-Net suffers **more than $2.3\times$ the domain shift penalty** of Standard U-Net ($-10.75\%$ vs $-4.54\%$).
+*(Reconciliation Note: Standard U-Net in-domain BUSI test IoU is verified at $56.06\% \pm 3.88\%$ in `UNET_INDOMAIN_TEST_RESULTS.csv`, reconciling the typographical $55.33\%$ entry from early drafts).*
 
 ```
-[In-Domain BUSI Test]
+[In-Domain BUSI Test (N=78)]
   Attention U-Net:  56.10% ──────┐
-  Standard U-Net:   55.33% ──┐   │
-                             │   │ Cross-Domain Transfer (BUS-BRA)
+  Standard U-Net:   56.06% ──┐   │
+                             │   │ Cross-Domain Transfer (BUS-BRA, N=1,063)
 [Zero-Shot BUS-BRA]          │   │
-  Standard U-Net:   50.79% ◄─┘ (-4.54% drop)
-  Attention U-Net:  45.35% ◄─────┘ (-10.75% drop: >2.3x more severe!)
+  Standard U-Net:   50.79% ◄─┘ (-5.27% drop)
+  Attention U-Net:  45.35% ◄─────┘ (-10.75% drop: ~2.04x greater degradation)
 ```
 
 ---
 
-## 5. Mechanistic Failure Analysis
+## 5. Mechanistic Investigation: Activation Profiles vs. Sigmoid Saturation
 
-Why did spatial attention gates fail under cross-dataset domain shift?
+To understand why Attention U-Net under-performed under domain shift, we conducted a direct programmatic inspection of intermediate activations across saved checkpoints (`best_model.pth`) on both BUSI and BUS-BRA (documented in [PHASE11_ATTENTION_GATE_MECHANISM_ANALYSIS.md](file:///D:/Study%20Material/Research/CV/vision_transformer_research/research_audit/phase11_attention_unet_final/PHASE11_ATTENTION_GATE_MECHANISM_ANALYSIS.md)).
 
-1. **Overfitting of Additive Gating Projections**:
-   The attention gate computes:
-   $$\hat{x}_l = \sigma\left(\psi^T \left[\text{ReLU}(W_g^T g + W_x^T x_l)\right]\right) \odot x_l$$
-   Trained on only 624 BUSI images, the linear projections $W_g \in \mathbb{R}^{C_g \times C_{\text{int}}}$ and $W_x \in \mathbb{R}^{C_l \times C_{\text{int}}}$ learned tight acoustic speckle and contrast statistics specific to the BUSI acquisition hardware (Hitachi / Siemens machines).
-2. **Domain-Induced Gate Starvation (Sigmoid Saturation)**:
-   When confronted with BUS-BRA images (acquired with different ultrasound platforms, differing dynamic ranges, and distinct acoustic shadowing profiles), the gating pre-activations fell outside their training distribution.
-   Because the sigmoid activation saturates at $0$ for large negative values, the attention coefficients $\alpha$ shifted heavily toward zero across peripheral tumor tissue.
-3. **Severing the Skip Pathway**:
-   When $\alpha \approx 0$, $\hat{x}_l \approx 0$. The skip connections were effectively disconnected, depriving the decoder of high-resolution spatial details. The model was forced to rely almost entirely on the deepest bottleneck features ($g$), which encode only the coarse, high-contrast core of the tumor.
-4. **Contrast with Transformer Self-Attention**:
-   Unlike additive attention gates, the self-attention mechanism in Swin-Tiny:
-   - Computes dynamic content-based similarities ($\text{Softmax}(Q K^T / \sqrt{d})$) rather than static additive gating.
-   - Operates across multi-head subspaces with ImageNet-pretrained positional and contextual priors.
-   - Maintains calibrated foreground volumes ($1.101\times \pm 0.181\times$) and high recall ($76.51\% \pm 6.79\%$), completely immune to the gating collapse observed in CNN attention gates.
+### 1. Refutation of the Sigmoid Saturation Hypothesis:
+- It was previously conjectured that gates suffered extreme sigmoid saturation near zero ($\alpha \to 0$), severing skip connections.
+- **Empirical Measurement**: Across all 4 gates, the fraction of activations with $\alpha < 0.10$ is **$< 1.0\%$** for both collapsed seeds (Seed 42: $0.08\% - 0.66\%$) and healthy seeds (Seed 2026: $0.04\% - 0.75\%$).
+- The feature transmission ratio ($\|\hat{x}\|_1 / \|x_{\text{skip}}\|_1$) remains virtually invariant at $\approx 50\%$ between in-domain BUSI and out-of-domain BUS-BRA.
+- The skip pathways are therefore **not physically disconnected** by the attention gates.
+
+### 2. The True Empirical Behavior: Diffuse Attenuation:
+- Rather than acting as high-contrast spatial selectors that isolate lesion cores, the attention gates exhibit narrow dynamic ranges centered tightly around $0.50$ ($Q25 \approx 0.45, Q75 \approx 0.58$, fraction $> 0.90$ is $< 2\%$).
+- The gates effectively act as a non-spatial scalar regularizer, halving feature magnitudes entering the decoder.
+
+### 3. Source of Volume Under-Prediction:
+- The volume under-prediction on seeds 42 and 123 is driven by **decoder double-convolution and classification-head sensitivity** to acoustic covariate shifts (transducer frequency, dynamic range, and acoustic shadowing), which depressed foreground logit margins below the classification threshold.
+- Attention gates failed to provide the global contextual invariance necessary to stabilize these logits across domain shifts.

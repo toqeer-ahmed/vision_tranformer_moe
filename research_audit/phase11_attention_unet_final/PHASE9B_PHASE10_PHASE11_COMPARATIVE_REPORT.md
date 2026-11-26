@@ -72,9 +72,9 @@ Tumor Volume Calibration Spectrum (Target = 1.00x GT):
             [Under-Prediction: Severe FN]                  [Optimal]      [Slight Dilation: High Sensitivity]
 ```
 
-### Insight 3: The Failure of Additive Gating vs Global Self-Attention
-- **Additive Skip Gates** multiply activations by a single scalar map $\alpha \in [0, 1]$. Under cross-dataset domain shift, acoustic covariate shifts push gating pre-activations into negative territory, causing gate starvation ($\alpha \to 0$) and severing skip connections.
-- **Multi-Head Self-Attention** dynamically calculates attention weights from query-key dot products ($Q K^T / \sqrt{d}$) across multiple subspaces, preserving global context even when local acoustic intensity distributions shift.
+### Insight 3: The Empirical Reality of Additive Gating vs Global Self-Attention
+- **Additive Skip Gates**: Programmatic inspection of intermediate activations across saved checkpoints disproves the conjecture of complete gate saturation near zero ($\alpha \to 0$ occurs in $< 1\%$ of pixels). Instead, the gates function as diffuse, non-spatial scalar attenuators ($\approx 50\%$ feature transmission across the visual field). They fail to provide sharp spatial masking, leaving downstream decoder layers vulnerable to acoustic covariate shifts.
+- **Multi-Head Self-Attention**: In contrast, Swin-Tiny dynamically calculates attention weights from query-key dot products ($Q K^T / \sqrt{d}$) across multiple subspaces, preserving global contextual relations and maintaining calibrated lesion volumes ($1.101\times \pm 0.181\times$) across differing ultrasound transducers.
 
 ### Insight 4: The ImageNet Pretraining Confound
 - We must maintain strict scientific objectivity regarding the pretraining confound:
@@ -93,3 +93,4 @@ All publication-ready visualizations have been rendered and stored in [research_
 3. **Figure 3**: [fig3_tumor_volume_ratio_comparison.png](file:///D:/Study%20Material/Research/CV/vision_transformer_research/research_audit/phase11_attention_unet_final/plots/fig3_tumor_volume_ratio_comparison.png) — Bar chart of tumor volume calibration ratios vs. 1.0x Ground Truth.
 4. **Figure 4**: [fig4_paired_delta_att_vs_standard_unet.png](file:///D:/Study%20Material/Research/CV/vision_transformer_research/research_audit/phase11_attention_unet_final/plots/fig4_paired_delta_att_vs_standard_unet.png) — Per-seed paired difference bar chart for Attention U-Net vs Standard U-Net.
 5. **Figure 5**: [fig5_domain_shift_penalty_comparison.png](file:///D:/Study%20Material/Research/CV/vision_transformer_research/research_audit/phase11_attention_unet_final/plots/fig5_domain_shift_penalty_comparison.png) — In-domain BUSI test vs zero-shot BUS-BRA generalization gap.
+6. **Figure 6**: [fig6_attention_gate_activation_histograms.png](file:///D:/Study%20Material/Research/CV/vision_transformer_research/research_audit/phase11_attention_unet_final/plots/fig6_attention_gate_activation_histograms.png) — Measured intermediate gating activation distributions across gates 1–4 contrasting Seed 42 vs Seed 2026.

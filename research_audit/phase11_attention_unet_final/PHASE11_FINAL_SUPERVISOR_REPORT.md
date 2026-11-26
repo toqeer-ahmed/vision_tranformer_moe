@@ -23,18 +23,17 @@ Across **ten matched random seeds** ($\mathcal{S} = \{42, 123, 314, 777, 999, 10
 
 ## 2. Definitive Scientific Findings
 
-### Finding 1: The Attention Gate Recall Hypothesis is Falsified
+### Finding 1: The Attention Gate Recall Hypothesis is Not Supported by Empirical Evidence
 The working hypothesis of Phase 11 was that additive attention gates on skip connections would suppress noise and recover subtle lesion boundary features, resolving the volume under-prediction pathology seen in Standard U-Net ($0.74\times$ volume ratio, $58.57\%$ recall).
 
 **Empirical Reality**:
-- Foreground Recall did **not** increase; it dropped by **$-7.24\%$** (from $58.57\%$ to $51.33\%$).
+- Foreground Recall did **not** increase; the sample mean declined by **$-7.24\%$** (from $58.57\%$ to $51.33\%$).
 - Volume under-prediction **worsened**; the volume ratio declined from $0.736\times$ ($6.00\text{ MP}$) to $0.638\times$ ($5.19\text{ MP}$ predicted vs. $8.15\text{ MP}$ GT).
-- On 2 out of 10 seeds (seeds 42 and 123), Attention U-Net suffered **catastrophic skip-gate suppression** under cross-dataset domain shift, collapsing to $28.42\%$ and $30.89\%$ IoU with volume ratios of $0.34\times - 0.37\times$.
+- **Statistical Nuance**: Because the paired comparison vs Standard U-Net yielded $t(9) = -1.71, p = 0.1225$ (Holm $p = 0.7168$, $95\%$ CI: $[-12.66\%, +1.78\%]$), we conclude that the data **failed to establish evidence of improvement**, while also not demonstrating statistically significant deterioration at $\alpha = 0.05$.
 
-### Finding 2: Attention Gates Exacerbate Domain Shift Sensitivity
-- On in-domain BUSI test data ($N=78$), Attention U-Net achieves healthy performance (**$56.10\% \pm 2.53\%$** IoU).
-- On zero-shot BUS-BRA data ($N=1,063$), Attention U-Net drops to **$45.35\% \pm 8.64\%$** IoU (a **$-10.75\%$ domain penalty**).
-- By contrast, Standard U-Net dropped by only **$-4.54\%$** (from $55.33\%$ to $50.79\%$). Attention gates multiplied cross-domain degradation by **$>2.3\times$**.
+### Finding 2: Attention U-Net Exhibits Greater Vulnerability to Domain Shift
+- On in-domain BUSI test data ($N=78$), Attention U-Net achieves performance virtually identical to Standard U-Net (**$56.10\% \pm 2.53\%$** vs **$56.06\% \pm 3.88\%$**, paired $p = 0.978$).
+- On zero-shot BUS-BRA data ($N=1,063$), Attention U-Net drops to **$45.35\% \pm 8.64\%$** IoU (a **$-10.75\%$ domain penalty**), whereas Standard U-Net drops to **$50.79\% \pm 3.68\%$** (a **$-5.27\%$ domain penalty**). Attention gates doubled the domain transfer drop.
 
 ### Finding 3: Pretrained Transformers Maintain a Commanding, Statistically Significant Lead
 - Under rigorous **Holm-Bonferroni Family-Wise Error Rate (FWER)** correction across all planned comparisons:
@@ -46,8 +45,8 @@ The working hypothesis of Phase 11 was that additive attention gates on skip con
 
 ## 3. Publication Value of This Negative Result
 
-In clinical and computer vision literature, Attention U-Net is frequently cited as a default improvement over Standard U-Net. Our rigorous multi-seed evaluation reveals an important, publishable clinical reality:
-> **When trained on limited clinical cohorts without pretraining, additive attention gates overfit to source-domain acquisition hardware and contrast statistics. Under acoustic domain shift (unseen ultrasound scanners and clinical sites), gating pre-activations shift into the negative saturation regime of the sigmoid, severing skip connections and causing severe tumor volume under-prediction.**
+In clinical and computer vision literature, Attention U-Net is frequently cited as a default improvement over Standard U-Net. Our rigorous multi-seed evaluation and activation audit reveal an important clinical reality:
+> **Direct measurement of intermediate gate activations across saved checkpoints disproves the conjecture that skip connections are severed by near-zero saturation ($\alpha \to 0$, observed in $<1.0\%$ of pixels). Instead, attention gates act as diffuse scalar attenuators ($\approx 50\%$ feature transmission across the visual field), failing to provide the dynamic spatial contrast needed to overcome acoustic domain shift. The resulting under-prediction reflects downstream decoder logit conservatism under transducer and speckle covariate shifts.**
 
 This provides a compelling scientific contribution for our manuscript: demonstrating why global self-attention mechanisms in Vision Transformers exhibit superior cross-domain generalization compared to localized convolutional gating.
 
@@ -58,6 +57,29 @@ This provides a compelling scientific contribution for our manuscript: demonstra
 All research deliverables have been structured and verified under `research_audit/phase11_attention_unet_final/`:
 
 ### Formal Audit Reports:
+1. [PHASE11_AUDIT_RECONCILIATION.md](file:///D:/Study%20Material/Research/CV/vision_transformer_research/research_audit/phase11_attention_unet_final/PHASE11_AUDIT_RECONCILIATION.md) — Comprehensive reconciliation of the in-domain BUSI discrepancy and metric traceability.
+2. [PHASE11_ATTENTION_GATE_MECHANISM_ANALYSIS.md](file:///D:/Study%20Material/Research/CV/vision_transformer_research/research_audit/phase11_attention_unet_final/PHASE11_ATTENTION_GATE_MECHANISM_ANALYSIS.md) — Intermediate gate activation profiles, feature transmission ratios, and empirical refutation of sigmoid saturation.
+3. [PHASE11_STATISTICAL_CORRECTIONS.md](file:///D:/Study%20Material/Research/CV/vision_transformer_research/research_audit/phase11_attention_unet_final/PHASE11_STATISTICAL_CORRECTIONS.md) — Multiplicity correction families, volume ratio mathematical definitions, and hypothesis testing standards.
+4. [PHASE11_FINAL_REPRODUCIBILITY_AUDIT.md](file:///D:/Study%20Material/Research/CV/vision_transformer_research/research_audit/phase11_attention_unet_final/PHASE11_FINAL_REPRODUCIBILITY_AUDIT.md) — 10-run audit and confusion matrix recalculation.
+5. [PHASE11_STATISTICAL_VALIDATION.md](file:///D:/Study%20Material/Research/CV/vision_transformer_research/research_audit/phase11_attention_unet_final/PHASE11_STATISTICAL_VALIDATION.md) — Parametric and non-parametric statistical battery with Holm-Bonferroni corrections.
+6. [PHASE11_PRECISION_RECALL_ANALYSIS.md](file:///D:/Study%20Material/Research/CV/vision_transformer_research/research_audit/phase11_attention_unet_final/PHASE11_PRECISION_RECALL_ANALYSIS.md) — Analysis of volume under-prediction and gating failure modes.
+7. [PHASE9B_PHASE10_PHASE11_COMPARATIVE_REPORT.md](file:///D:/Study%20Material/Research/CV/vision_transformer_research/research_audit/phase11_attention_unet_final/PHASE9B_PHASE10_PHASE11_COMPARATIVE_REPORT.md) — 4-model cross-benchmark report.
+8. [PHASE11_FINAL_SUPERVISOR_REPORT.md](file:///D:/Study%20Material/Research/CV/vision_transformer_research/research_audit/phase11_attention_unet_final/PHASE11_FINAL_SUPERVISOR_REPORT.md) — This executive briefing.
+
+### Master Datasets (CSV):
+1. [ATTENTION_GATE_ACTIVATION_PROFILES.csv](file:///D:/Study%20Material/Research/CV/vision_transformer_research/research_audit/phase11_attention_unet_final/ATTENTION_GATE_ACTIVATION_PROFILES.csv) — Programmatic intermediate attention-gate statistics across seeds 42, 123, 2026, 2718.
+2. [FOUR_MODEL_BENCHMARK_MASTER.csv](file:///D:/Study%20Material/Research/CV/vision_transformer_research/research_audit/phase11_attention_unet_final/FOUR_MODEL_BENCHMARK_MASTER.csv) — Complete per-seed raw metrics for all 4 architectures across all 10 seeds.
+3. [PHASE11_STATISTICAL_METRICS_WITH_HOLM.csv](file:///D:/Study%20Material/Research/CV/vision_transformer_research/research_audit/phase11_attention_unet_final/PHASE11_STATISTICAL_METRICS_WITH_HOLM.csv) — Programmatic statistical test outputs with uncorrected and Holm-adjusted $p$-values.
+4. [PHASE11_PER_SEED_RECALCULATED.csv](file:///D:/Study%20Material/Research/CV/vision_transformer_research/research_audit/phase11_attention_unet_final/PHASE11_PER_SEED_RECALCULATED.csv) — Recalculated zero-shot metrics from pixel counts.
+5. [ATTENTION_UNET_INDOMAIN_TEST_RESULTS.csv](file:///D:/Study%20Material/Research/CV/vision_transformer_research/research_audit/phase11_attention_unet_final/ATTENTION_UNET_INDOMAIN_TEST_RESULTS.csv) — In-domain BUSI test metrics.
+
+### Publication-Quality Figures:
+1. [fig6_attention_gate_activation_histograms.png](file:///D:/Study%20Material/Research/CV/vision_transformer_research/research_audit/phase11_attention_unet_final/plots/fig6_attention_gate_activation_histograms.png) — Gating activation histograms contrasting Seed 42 (collapsed) vs Seed 2026 (healthy).
+2. [fig1_four_model_fg_iou_boxplot.png](file:///D:/Study%20Material/Research/CV/vision_transformer_research/research_audit/phase11_attention_unet_final/plots/fig1_four_model_fg_iou_boxplot.png) — 4-model zero-shot IoU distributions with jittered scatter.
+3. [fig2_precision_recall_pareto_scatter.png](file:///D:/Study%20Material/Research/CV/vision_transformer_research/research_audit/phase11_attention_unet_final/plots/fig2_precision_recall_pareto_scatter.png) — Precision-Recall Pareto scatter across 40 experimental runs.
+4. [fig3_tumor_volume_ratio_comparison.png](file:///D:/Study%20Material/Research/CV/vision_transformer_research/research_audit/phase11_attention_unet_final/plots/fig3_tumor_volume_ratio_comparison.png) — Tumor volume calibration ratio vs 1.0x Ground Truth.
+5. [fig4_paired_delta_att_vs_standard_unet.png](file:///D:/Study%20Material/Research/CV/vision_transformer_research/research_audit/phase11_attention_unet_final/plots/fig4_paired_delta_att_vs_standard_unet.png) — Per-seed paired delta bar chart for Attention Gates.
+6. [fig5_domain_shift_penalty_comparison.png](file:///D:/Study%20Material/Research/CV/vision_transformer_research/research_audit/phase11_attention_unet_final/plots/fig5_domain_shift_penalty_comparison.png) — In-domain vs out-of-domain generalization drop.
 1. [PHASE11_FINAL_REPRODUCIBILITY_AUDIT.md](file:///D:/Study%20Material/Research/CV/vision_transformer_research/research_audit/phase11_attention_unet_final/PHASE11_FINAL_REPRODUCIBILITY_AUDIT.md) — Complete audit of all 10 runs, checkpoint weights ($31,389,295$ params), configs, and raw confusion matrix parity.
 2. [PHASE11_STATISTICAL_VALIDATION.md](file:///D:/Study%20Material/Research/CV/vision_transformer_research/research_audit/phase11_attention_unet_final/PHASE11_STATISTICAL_VALIDATION.md) — Full statistical battery: paired $t$-tests, Wilcoxon signed-rank tests, Cohen's $d_z$, 95% CIs, Shapiro-Wilk tests, and Holm-Bonferroni corrections.
 3. [PHASE11_PRECISION_RECALL_ANALYSIS.md](file:///D:/Study%20Material/Research/CV/vision_transformer_research/research_audit/phase11_attention_unet_final/PHASE11_PRECISION_RECALL_ANALYSIS.md) — Deep dive into the precision-recall wedge, volume under-prediction, and gating failure modes on seeds 42 and 123.
