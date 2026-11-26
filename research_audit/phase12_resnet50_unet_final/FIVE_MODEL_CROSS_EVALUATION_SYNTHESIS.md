@@ -17,11 +17,11 @@ All models were trained on BUSI ($80\%$ train, $10\%$ val, $10\%$ test) across *
 
 | Model | Architecture Class | Pretraining | Params (M) | In-Domain BUSI FG IoU (%) | Zero-Shot BUS-BRA FG IoU (%) | Zero-Shot FG Dice (%) | Zero-Shot FG Recall (%) | Zero-Shot FG Precision (%) | Pixel Accuracy (%) | Mean Volume Ratio |
 |---|---|---|---|---|---|---|---|---|---|---|
-| **Vanilla Swin-Tiny** | Hierarchical ViT | ImageNet-1K | 29.29 | $61.5 \pm 3.5$ | **$57.50 \pm 4.74$** | $72.91 \pm 3.98$ | **$76.51 \pm 6.20$** | $70.44 \pm 8.20$ | $95.06 \pm 0.44$ | $1.10 \pm 0.18$ |
-| **Standard-MLP Swin-MoE** | Sparsely-Gated ViT | ImageNet-1K | 33.64 (28.32) | $62.0 \pm 2.8$ | **$57.85 \pm 2.15$** | $73.28 \pm 1.73$ | **$77.35 \pm 4.49$** | $69.92 \pm 6.84$ | $94.99 \pm 0.52$ | $1.11 \pm 0.11$ |
-| **Standard U-Net** | Canonical CNN | Scratch | 31.04 | $56.06 \pm 3.88$ | **$50.79 \pm 3.68$** | $67.29 \pm 3.33$ | $58.57 \pm 4.05$ | **$80.19 \pm 4.54$** | $95.11 \pm 0.51$ | $0.74 \pm 0.12$ |
-| **Attention U-Net** | Attention-Gated CNN | Scratch | 31.39 | $56.10 \pm 2.53$ | **$45.35 \pm 8.64$** | $61.93 \pm 8.84$ | $51.33 \pm 11.83$ | **$81.38 \pm 4.58$** | $94.71 \pm 0.81$ | $0.64 \pm 0.16$ |
-| **ResNet-50 U-Net** | Residual CNN | ImageNet-1K | 32.52 | **$59.26 \pm 4.35$** | **$50.36 \pm 6.98$** | $66.71 \pm 6.48$ | $62.84 \pm 10.34$ | $72.62 \pm 7.13$ | $94.65 \pm 0.82$ | $0.87 \pm 0.17$ |
+| **Standard-MLP Swin-MoE** | Sparsely-Gated ViT | ImageNet-1K | 81.15M (46.64M) | $62.0 \pm 2.8$ | **$57.85 \pm 2.15$** | $73.28 \pm 1.73$ | **$77.35 \pm 3.73$** | $69.92 \pm 4.33$ | $95.11 \pm 0.50$ | $1.11 \pm 0.11$ |
+| **Vanilla Swin-Tiny** | Hierarchical ViT | ImageNet-1K | 29.29M (29.29M) | $61.5 \pm 3.5$ | **$57.50 \pm 4.74$** | $72.91 \pm 3.98$ | **$76.51 \pm 6.79$** | $70.44 \pm 6.61$ | $95.06 \pm 0.98$ | $1.10 \pm 0.18$ |
+| **Standard U-Net** | Canonical CNN | Scratch | 31.04M (31.04M) | $56.06 \pm 3.88$ | **$50.79 \pm 3.68$** | $67.29 \pm 3.33$ | $58.57 \pm 6.49$ | **$80.19 \pm 4.73$** | $95.11 \pm 0.28$ | $0.74 \pm 0.12$ |
+| **ResNet-50 U-Net** | Residual CNN | ImageNet-1K | 32.52M (32.52M) | **$59.26 \pm 4.35$** | **$50.36 \pm 6.98$** | $66.71 \pm 6.48$ | $62.84 \pm 10.34$ | $72.62 \pm 7.13$ | $94.65 \pm 0.82$ | $0.87 \pm 0.17$ |
+| **Attention U-Net** | Attention-Gated CNN | Scratch | 31.39M (31.39M) | $56.10 \pm 2.53$ | **$45.35 \pm 8.64$** | $61.93 \pm 8.84$ | $51.33 \pm 11.32$ | **$81.38 \pm 4.38$** | $94.71 \pm 0.61$ | $0.64 \pm 0.16$ |
 
 ---
 

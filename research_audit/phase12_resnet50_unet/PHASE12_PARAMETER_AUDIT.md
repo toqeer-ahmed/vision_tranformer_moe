@@ -56,10 +56,13 @@ $$\text{Conv2}: C_{out} \times C_{out} \times 3 \times 3 + \text{BN2}: 2 \times 
 | Architecture | Backbone Family | Pretraining Status | Total Parameters | Trainable Parameters | Decoder / Head Parameters | Ratio vs Swin-Tiny |
 |---|---|---|---|---|---|---|
 | **Vanilla Swin-Tiny** | Hierarchical ViT | ImageNet-1K Pretrained | **29,292,723** | 29,292,723 | 1,745,091 | $1.00\times$ (Reference) |
-| **Standard-MLP Swin-MoE** | Sparsely-Gated ViT | ImageNet-1K Pretrained | **33,640,051** | 33,640,051 (28.32M active) | 1,745,091 | $1.15\times$ |
+| **Standard-MLP Swin-MoE** | Sparsely-Gated ViT | ImageNet-1K Pretrained | **81,148,989** | 81,148,989 (46,635,453 active) | 1,745,091 | $2.77\times$ (Total) / $1.59\times$ (Active) |
 | **Standard U-Net** | Canonical CNN | Random Initialization | **31,037,635** | 31,037,635 | 16,846,595 | $1.06\times$ |
 | **Attention U-Net** | Attention-Gated CNN | Random Initialization | **31,389,295** | 31,389,295 | 17,198,255 | $1.07\times$ |
 | **ResNet-50 U-Net (Phase 12)** | Residual CNN | **ImageNet-1K Pretrained** | **32,521,011** | **32,521,011** | **9,012,979** | **$1.11\times$** |
+
+> [!NOTE] Cross-Phase Parameter Reconciliation
+> The Standard-MLP Swin-MoE parameter count in the table above was corrected from an earlier exploratory transcription ($33.64\text{M}$ / $28.32\text{M}$, which represented an isolated Stage 3 replacement) to the verified full-model architecture with MoE layers across all 12 blocks ($4 \times 12 = 48$ experts): **$81,148,989$ total parameters ($46,635,453$ active per forward pass)**. Full programmatic verification and audit trail are documented in [PARAMETER_COUNT_RECONCILIATION.md](file:///D:/Study%20Material/Research/CV/vision_transformer_research/research_audit/final_cross_phase_integrity_audit/PARAMETER_COUNT_RECONCILIATION.md).
 
 ### Key Audit Conclusions:
 1. **Parameter Parity**: ResNet-50 U-Net is within $+11.0\%$ of Swin-Tiny and within $+4.8\%$ of Standard U-Net. Any observed generalization performance differences cannot be attributed to an order-of-magnitude parameter mismatch.
