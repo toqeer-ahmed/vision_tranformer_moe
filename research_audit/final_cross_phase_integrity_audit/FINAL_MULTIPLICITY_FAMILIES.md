@@ -36,18 +36,47 @@ The step-down procedure terminates at the first index $k$ where $(m - k + 1) \cd
 
 ---
 
-## 3. Pre-Specification Status Audit
+## 3. Pre-Specification Audit and Git Commit Evidence
 
-An independent audit of repository scripts across all phases reveals:
-- **Phase 10 & Phase 12 Training Pipelines**: Multiplicity corrections were **not** integrated into the training scripts or dataset splitters.
-- **Phase 10 & Phase 12 Statistical Audit Scripts** (`PHASE10_STATISTICAL_VALIDATION.md`, `audit_phase12_statistical_analysis.py`): The **Per-Contrast 7-Metric Battery (Family A, $m=7$)** was explicitly implemented and pre-specified to control FWER across the 7 reported metrics for any given pairwise architecture comparison.
-- **Cross-Phase Synthesis (Phases 9B-12)**: The **Primary Model Contrast Family (Family B, $m=6$)**, secondary metric contrast families (Family C, $m=6$), in-domain family (Family D, $m=3$), and omnibus family (Family E, $m=42$) were formulated during cross-phase synthesis as the natural planned model contrasts across the 5 architectures. To maintain strict scientific integrity, Families B, C, D, and E are classified as **planned analytical synthesis families**, while Family A is the **script-implemented pre-specified metric battery**.
+To adhere to open-science and biostatistical standards, an analysis protocol cannot be deemed "pre-specified" simply because it appears in a retrospective analysis script. A truly pre-specified or confirmatory analysis requires an explicit protocol or pre-registration frozen in a versioned repository *before* any experimental outcomes on the evaluated cohort are observed.
+
+### Audit of Earliest Git Commits Defining Families A–E:
+
+| Family | Analysis Scope | Earliest Defining Artifact | Earliest Git Commit & Date | Were Results Examined Prior to Definition? | Formal Classification |
+|---|---|---|---|:---:|---|
+| **Family A** | Per-Contrast 7-Metric Battery ($m=7$) | `PHASE10_STATISTICAL_VALIDATION.md` | Commit `d31a183` (2026-11-25) | **YES** (Phase 10 raw U-Net results had already been inspected) | **Exploratory / Post-Training Metric Battery** |
+| **Family B** | Primary Model Contrasts on FG IoU ($m=6$) | `MULTIPLICITY_FAMILY_DEFINITIONS.md` | Commit `0d47103` (2026-11-26) | **YES** (Formulated after Phase 12 results were computed) | **Exploratory / Post-Hoc Synthesis Family** |
+| **Family C** | Secondary Metric Contrasts ($m=6$ each) | `MULTIPLICITY_FAMILY_DEFINITIONS.md` | Commit `0d47103` (2026-11-26) | **YES** (Formulated after Phase 12 results were computed) | **Exploratory / Post-Hoc Secondary Family** |
+| **Family D** | In-Domain BUSI Contrasts ($m=3$) | `MULTIPLICITY_FAMILY_DEFINITIONS.md` | Commit `0d47103` (2026-11-26) | **YES** (Formulated during cross-phase synthesis) | **Exploratory / Post-Hoc In-Domain Family** |
+| **Family E** | Global Omnibus ($m=42$) | `MULTIPLICITY_FAMILY_DEFINITIONS.md` | Commit `0d47103` (2026-11-26) | **YES** (Formulated during cross-phase synthesis) | **Exploratory / Post-Hoc Omnibus Benchmark** |
+
+> [!IMPORTANT] Biostatistical Standard on Pre-Specification
+> No prospective pre-registration document was committed prior to running the training pipelines or evaluating test sets. Consequently, **all multiplicity families in this study are formally exploratory / post hoc**. Historical analysis scripts (`audit_phase12_statistical_analysis.py`, `PHASE10_STATISTICAL_VALIDATION.md`) represent retrospective analytical protocols rather than a priori pre-specifications.
+
+### Why Six Contrasts Were Selected in Family B (Instead of All Ten Possible Pairs):
+
+Among five architectures, there are $\binom{5}{2} = \frac{5 \times 4}{2} = 10$ possible pairwise contrasts. Family B evaluates exactly **six**:
+1. **Vanilla Swin-Tiny vs. ResNet-50 U-Net** (Phase 12: ViT vs. CNN under matched ImageNet-1K pretraining).
+2. **Vanilla Swin-Tiny vs. Standard U-Net** (Phase 10: Pretrained ViT vs. canonical scratch CNN baseline).
+3. **Vanilla Swin-Tiny vs. Attention U-Net** (Phase 11: Dense self-attention ViT vs. skip-attention scratch CNN).
+4. **Standard U-Net vs. Attention U-Net** (Phase 11: Isolated effect of adding Oktay et al. skip attention gates to canonical U-Net).
+5. **Standard U-Net vs. ResNet-50 U-Net** (Phase 12: Scratch CNN baseline vs. pretrained residual CNN).
+6. **Standard-MLP Swin-MoE vs. Vanilla Swin-Tiny** (Phase 9B: Isolated effect of replacing dense MLPs with Top-2 MoE routing).
+
+**The Four Omitted Pairwise Contrasts:**
+1. *Standard-MLP Swin-MoE vs. Standard U-Net*
+2. *Standard-MLP Swin-MoE vs. Attention U-Net*
+3. *Standard-MLP Swin-MoE vs. ResNet-50 U-Net*
+4. *Attention U-Net vs. ResNet-50 U-Net*
+
+**Rationale for Omission:**
+The six included contrasts map directly to the sequential, single-factor experimental questions posed chronologically in Phases 9B through 12. Each of the four omitted comparisons alters multiple major architectural dimensions simultaneously (for example, comparing Swin-MoE to Standard U-Net confounds vision transformer self-attention, sparse Top-2 mixture-of-experts routing, and ImageNet pretraining against a scratch convolutional baseline). Because these four pairs do not isolate any single architectural mechanism, they were not formulated as primary contrasts. Nonetheless, because this restriction to 6 contrasts was established during cross-phase synthesis rather than in an a priori pre-registered statistical analysis plan, Family B must be reported as a **planned scientific contrast subset within a post-hoc synthesis**, not a pre-registered confirmatory family.
 
 ---
 
 ## 4. Family A: Per-Contrast Metric Battery ($m=7$)
 
-- **Pre-Specification Status:** **Script-Implemented / Pre-Specified** in Phase 10/12 audit scripts.
+- **Pre-Specification Status:** **Exploratory / Retrospective Metric Battery** (First implemented in Phase 10 audit script `PHASE10_STATISTICAL_VALIDATION.md` at `d31a183`).
 - **Scientific Purpose:** Controls error inflation when evaluating a single architecture comparison across all 7 segmentation metrics: Foreground IoU, Foreground Dice, Foreground Recall, Foreground Precision, Macro mIoU, Macro mDice, and Pixel Accuracy.
 - **Family Size:** $m = 7$.
 
@@ -70,9 +99,9 @@ An independent audit of repository scripts across all phases reveals:
 
 ## 5. Family B: Planned Primary Model Contrast Family on FG IoU ($m=6$)
 
-- **Pre-Specification Status:** **Planned Analytical Synthesis Family** (Natural model contrasts across the 5 architectures).
+- **Pre-Specification Status:** **Exploratory / Post-Hoc Analytical Synthesis Family** (Primary model contrasts across the 5 architectures, formulated post-experimentally during cross-phase synthesis at commit `0d47103`).
 - **Primary Endpoint:** Foreground IoU on the external zero-shot BUS-BRA cohort ($N=1,875$ images, 10 matched seeds).
-- **Family Size:** $m = 6$ planned model comparisons.
+- **Family Size:** $m = 6$ model comparisons.
 
 | Rank ($k$) | Comparison | Mean Diff (pp) | Paired $t$ ($df=9$) | Raw $p_{(k)}$ | Multiplier ($6 - k + 1$) | Uncapped Step | Exact Holm $p_{\text{adj}}$ | Significant at $\alpha=0.05$? |
 |:---:|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
@@ -90,7 +119,7 @@ An independent audit of repository scripts across all phases reveals:
 
 ## 6. Family C: Secondary Model Contrast Families ($m=6$ Each)
 
-- **Pre-Specification Status:** **Planned Secondary Families** (Evaluated across the 6 model contrasts for key secondary metrics).
+- **Pre-Specification Status:** **Exploratory / Post-Hoc Secondary Families** (Evaluated across the 6 model contrasts for key secondary metrics, formulated during cross-phase synthesis at commit `0d47103`).
 
 ### A. Foreground Recall Family ($m=6$)
 
@@ -129,7 +158,7 @@ An independent audit of repository scripts across all phases reveals:
 
 ## 7. Family D: In-Domain BUSI Contrast Family ($m=3$)
 
-- **Pre-Specification Status:** **Post-Hoc Analytical Family** (Comparisons on held-out in-domain test set, $N=78$ images, 10 matched seeds).
+- **Pre-Specification Status:** **Exploratory / Post-Hoc In-Domain Family** (Comparisons on held-out in-domain test set, $N=78$ images, 10 matched seeds, formulated during cross-phase synthesis at commit `0d47103`).
 - **Endpoint:** In-Domain BUSI Test Foreground IoU.
 - **Family Size:** $m = 3$ comparisons.
 

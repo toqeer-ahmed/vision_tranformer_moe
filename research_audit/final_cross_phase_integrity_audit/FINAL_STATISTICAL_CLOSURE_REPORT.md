@@ -177,7 +177,7 @@ An important scientific question investigated in Phase 12 was whether ImageNet-1
 - **Holm-Adjusted $p$-value (In-Domain Contrast Family, $m=3$)**: **$p_{\text{adj}} = 0.388296$**
 
 ### Biostatistical Verdict:
-The null hypothesis of no difference in in-domain test FG IoU **cannot be rejected** ($p = 0.194 > 0.05$). While pretraining yielded noticeable benefits during optimization and validation (increasing best validation Dice from $63.85\%$ to $68.22\%$, $+4.37\%$), and increased test recall from $68.41\%$ to $76.06\%$ (raw $p = 0.0249$), the observed $+3.20\%$ test FG IoU increase is **not statistically significant**. Previous audit statements asserting "statistically significant in-domain test improvement" were overstatements and are formally retracted.
+The observed in-domain FG IoU improvement associated with the pretrained ResNet-50 U-Net was not statistically significant in this experiment ($t = 1.403, p = 0.1941, 95\%\text{ CI}: [-1.96\text{ pp}, +8.37\text{ pp}]$; Holm $p_{\text{adj}} = 0.3883$). Non-significance does not prove that pretraining provides no benefit, but rather that the observed data are consistent with the null hypothesis at $\alpha = 0.05$. Furthermore, because ResNet-50 U-Net and Standard U-Net differ simultaneously in encoder depth, residual topology, and pretraining status, this comparison does not isolate the causal effect of pretraining.
 
 ---
 

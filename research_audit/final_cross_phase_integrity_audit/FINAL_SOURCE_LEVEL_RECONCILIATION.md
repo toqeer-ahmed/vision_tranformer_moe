@@ -136,8 +136,8 @@ All six planned comparisons on the primary endpoint (Zero-Shot BUS-BRA Foregroun
 - **Wilcoxon Signed-Rank Test**: $W = \mathbf{16.0}$, Two-Tailed $p = \mathbf{0.275391}$
 - **Holm-Adjusted $p$-value**: Under the post-hoc in-domain contrast family ($m=3$), this test is rank 2 (multiplier 2), yielding $p_{\text{adj}} = 0.194148 \times 2 = \mathbf{0.388296}$.
 
-> [!IMPORTANT] Pre-Specification Audit Finding
-> The family of $m=3$ in-domain model contrasts was **not pre-specified** in Phase 10 or Phase 12 training configs; it was formulated post hoc during cross-phase synthesis. Furthermore, because the raw $p$-value is $0.1941 > 0.05$, the difference is **statistically non-significant under every family definition** (unadjusted or adjusted).
+> [!IMPORTANT] Biostatistical Finding on In-Domain Pretraining
+> The observed in-domain FG IoU improvement associated with the pretrained ResNet-50 U-Net was not statistically significant in this experiment ($t = 1.403, p = 0.1941, 95\%\text{ CI}: [-1.96\text{ pp}, +8.37\text{ pp}]$, crossing zero; Holm $p_{\text{adj}} = 0.3883$). Failure to reject the null hypothesis does not prove that pretraining provides no benefit, but rather that this sample size ($N=10$ seeds, $78$ images per seed) provides insufficient statistical evidence to reject the null. Furthermore, because ResNet-50 and Standard U-Net differ in both encoder architecture (residual vs. canonical convolutional) and initialization (pretrained vs. scratch), this comparison does not isolate a pure causal effect of pretraining.
 
 ---
 

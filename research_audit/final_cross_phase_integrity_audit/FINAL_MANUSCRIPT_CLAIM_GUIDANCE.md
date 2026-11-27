@@ -99,9 +99,7 @@ AUDIT EVIDENCE:
 - Raw p = 0.0037, Holm-adjusted p = 0.0199 (Family 2, m=6), Holm-adjusted p = 0.0260 (Family 3, m=7).
 - 2D pixel count ratio increases from 0.7365 ± 0.1212 to 0.8746 ± 0.1728.
 MANUSCRIPT GUIDANCE:
-Claim E is statistically sound and verified. Emphasize that ImageNet-1K pretraining encourages the CNN
-to predict larger masks (raising recall from 58.57% to 62.84%), but this coverage comes at the cost of
-a statistically significant 7.57% reduction in precision.
+Claim E is statistically sound and verified in terms of association ($p_{\text{adj}} = 0.026$). Emphasize that pretrained ResNet-50 U-Net predicts larger masks (raising recall from 58.57% to 62.84%), but exhibits a statistically significant 7.57% reduction in precision compared to scratch Standard U-Net. However, authors must explicitly state that because ResNet-50 and Standard U-Net differ in both encoder architecture (residual vs canonical convolutional) and initialization (ImageNet vs scratch), this association does not isolate a pure causal effect of pretraining.
 
 ====================================================================================================
 CLAIM F: Convolutions misinterpret posterior shadowing, whereas self-attention suppresses it.
