@@ -111,6 +111,25 @@ Previous audit drafts and synthesis summaries contained minor discrepancies in r
 +---------------------------------------------------------------------------------------------------+
 ```
 
+### E. Master Discrepancy Resolution Table across Audit History
+
+The table below reconciles all discrepancies across historical drafts, the previous turn draft, and the verified canonical raw data:
+
+| Metric / Comparison | Earlier Value | Latest Turn Draft | Raw-Data Verified Value | Root Cause & Auditor Explanation |
+|---|---|---|---|---|
+| **Swin-MoE Total Parameters** | $81.15\text{M}$ | $33.64\text{M}$ ($28.32\text{M}$) | **$81.15\text{M}$ ($81,148,989$) total, $46.64\text{M}$ active** | Single-stage exploratory configuration (Stage 3 only) was mistakenly transcribed into Phase 12 text. The actual Phase 9B model placed 4-expert MoE across all 12 blocks ($12 \times 4 = 48$ experts). |
+| **Swin-Tiny vs Std U-Net $t$-statistic** | $4.220$ ($p=0.0022$) | $3.467$ ($p=0.0071$) | **$t = 3.467473$, $p = 0.007077$** | The $4.220$ value was an unverified draft calculation that assumed an artificially low difference SD ($s_d = 5.03$ vs true $6.12$). Recomputed raw observations yield strictly $t = 3.467$. |
+| **Swin-Tiny vs ResNet-50 Recall $p$-value** | $0.0083$ | $0.0094$ | **$p = 0.009425$ ($t = 3.287, df=9$)** | The value $0.0083$ was a transcription error from row 37 of `CANONICAL_PAIRED_STATISTICAL_RESULTS.csv`, which documented the *mean difference* between MoE and Swin-Tiny on Recall ($+0.00833$). |
+| **Swin-Tiny vs ResNet-50 Recall Holm $p$** | $0.0498$ | $0.0498 \dots 0.0660$ | **$p_{\text{adj}} = 0.0377$ (Family C, $m=6$), $0.0660$ (Family A, $m=7$)** | $0.0498$ was an invalid multiplication of the erroneous $p=0.0083 \times 6$. The range was an artifact of mixing families. |
+| **Swin-Tiny vs ResNet-50 FG IoU $p$-value** | $0.0394$ | $0.0396$ | **$p = 0.039569$ ($t = 2.405, df=9$)** | Minor four-decimal rounding error ($0.0394$ vs true $0.0396$). |
+| **Swin-Tiny In-Domain FG IoU** | $60.52 \pm 5.43\%$ | $61.50 \pm 3.50\%$ | **$60.24 \pm 6.11\%$** | Early drafts used placeholder or rounded values. The verified value is the exact arithmetic mean of the 10 raw `test_metrics.json` files in `outputs/results_phase9_auxloss_corrected/outputs/`. |
+| **Swin-MoE In-Domain FG IoU** | $60.91 \pm 4.12\%$ | $62.00 \pm 2.80\%$ | **$60.58 \pm 5.28\%$** | Same as above. Computed directly from the 10 raw `test_metrics.json` files. |
+| **Standard U-Net In-Domain FG IoU SD** | $56.06 \pm 4.96\%$ | $56.06 \pm 3.88\%$ | **$56.06 \pm 3.88\%$** | $4.96\%$ was transcribed from an earlier exploratory seed subset. True sample SD ($ddof=1$) across the 10 seeds in `UNET_INDOMAIN_TEST_RESULTS.csv` is strictly $3.88\%$. |
+| **Attention U-Net In-Domain FG IoU** | $55.33 \pm 3.79\%$ | $56.10 \pm 2.53\%$ | **$56.10 \pm 2.53\%$** | $55.33\%$ was an erroneous transcription of Standard U-Net's Seed 42 zero-shot IoU. Recomputed from `ATTENTION_UNET_INDOMAIN_TEST_RESULTS.csv` (`Test_Foreground_IoU`). |
+| **ResNet-50 In-Domain Pretraining Claim** | "Statistically significant improvement" | "Supported by evidence" | **Not statistically significant ($p = 0.1941$)** | Overstatement based on training/validation convergence. Paired test on held-out BUSI test FG IoU yields $t = 1.403, p = 0.1941, 95\%\text{ CI}: [-1.96\%, +8.37\%]$, crossing zero. |
+| **BUS-BRA Evaluation Cohort Size** | $N = 1,063$ | $N = 1,063$ | **$N = 1,875$ images ($1,063$ patients)** | The BUS-BRA publication cites $1,063$ patients, but the dataset contains $1,875$ slice images. All $1,875$ images were evaluated per seed ($94,080,000$ evaluated pixels per seed). |
+| **2D Volume Ratio Formulation** | $0.97\times$ | $1.10\times$ | **$1.1005 \pm 0.1805$ (2D Pixel-Count Ratio)** | $0.97\times$ was an inverted ratio ($\text{GT}/\text{Pred}$) from early notes. Terminology corrected to 2D pixel-count ratio, never clinical volume. |
+
 ---
 
 ## 4. Definitive Canonical Benchmark Tables
@@ -128,15 +147,15 @@ All values represent sample mean $\pm$ sample standard deviation ($ddof=1$).
 
 ### Table 2: In-Domain Evaluation (Held-Out BUSI Test Set, $N=78$ images, 10 Matched Seeds)
 
-| Model Architecture | In-Domain FG IoU (%) | In-Domain FG Dice (%) | In-Domain Recall (%) | In-Domain Precision (%) | Validation Best Dice (%) | Cross-Domain Penalty ($\Delta\text{IoU}$) |
-|---|---|---|---|---|---|---|
-| **Vanilla Swin-Tiny** | $61.50 \pm 3.50$* | $74.20 \pm 2.80$* | $78.10 \pm 4.20$* | $72.50 \pm 5.10$* | $69.76 \pm 3.96$ | **$-4.00\%$** |
-| **Standard-MLP Swin-MoE** | $62.00 \pm 2.80$* | $74.80 \pm 2.10$* | $78.50 \pm 3.10$* | $73.10 \pm 3.80$* | $70.21 \pm 3.32$ | **$-4.15\%$** |
-| **Standard U-Net** | $56.06 \pm 3.88$ | $71.77 \pm 3.17$ | $68.41 \pm 7.47$ | **$76.03 \pm 4.09$** | $63.85 \pm 3.71$ | **$-5.27\%$** |
-| **Attention U-Net** | $56.10 \pm 2.53$ | $71.88 \pm 2.06$ | $68.32 \pm 6.39$ | **$76.62 \pm 4.88$** | $63.12 \pm 3.45$ | **$-10.75\%$** |
-| **ResNet-50 U-Net** | **$59.26 \pm 4.35$** | **$74.34 \pm 3.36$** | **$76.06 \pm 5.86$** | $73.03 \pm 3.93$ | **$68.22 \pm 3.21$** | **$-8.90\%$** |
+| Model Architecture | In-Domain FG IoU (%) | In-Domain FG Dice (%) | In-Domain Recall (%) | In-Domain Precision (%) | Validation Best Dice (%) | Cross-Domain Penalty ($\Delta_{\text{transfer}}$) |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Vanilla Swin-Tiny** | $60.24 \pm 6.11$ | $74.97 \pm 4.40$ | $79.34 \pm 6.94$ | $72.05 \pm 5.49$ | $69.76 \pm 3.96$ | **$-2.74\text{ pp}$** |
+| **Standard-MLP Swin-MoE** | $60.58 \pm 5.28$ | $75.26 \pm 3.96$ | $79.03 \pm 6.31$ | $72.64 \pm 4.54$ | $70.21 \pm 3.32$ | **$-2.73\text{ pp}$** |
+| **Standard U-Net** | $56.06 \pm 3.88$ | $71.77 \pm 3.17$ | $68.41 \pm 7.47$ | **$76.03 \pm 4.09$** | $63.85 \pm 3.71$ | **$-5.27\text{ pp}$** |
+| **Attention U-Net** | $56.10 \pm 2.53$ | $71.88 \pm 2.06$ | $68.32 \pm 6.39$ | **$76.62 \pm 4.88$** | $63.12 \pm 3.45$ | **$-10.75\text{ pp}$** |
+| **ResNet-50 U-Net** | **$59.26 \pm 4.35$** | **$74.34 \pm 3.36$** | **$76.06 \pm 5.86$** | $73.03 \pm 3.93$ | **$68.22 \pm 3.21$** | **$-8.91\text{ pp}$** |
 
-*\*Note:* Historical Phase 9B test records for Swin in-domain test folds.
+*Note:* Computed directly from the 10 raw `test_metrics.json` execution logs (`outputs/results_phase9_auxloss_corrected/outputs/`) and verified CSVs. Cross-domain penalty is $\Delta_{\text{transfer}} = \text{BUS-BRA Zero-Shot FG IoU} - \text{BUSI In-Domain FG IoU}$.
 
 ---
 
